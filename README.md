@@ -1,4 +1,4 @@
-# Astria ⚡
+# Astria
 ### Privacy-First AI Resume Gap Analysis & Pedagogical Roadmap Platform
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
@@ -10,7 +10,7 @@
 
 ---
 
-## 🌟 Overview
+##  Overview
 
 **Astria** is a modern, transparent career acceleration platform that analyzes job qualifications, pinpoints technical skill gaps with **mathematical precision**, and builds personalized, week-by-week technical curriculums.
 
@@ -24,7 +24,7 @@ Unlike conventional "black-box" AI resume tools that transmit unscrubbed candida
 
 ---
 
-## 🖥️ Modern Dark-Mode SaaS Interface
+##  Modern Dark-Mode SaaS Interface
 
 - **Target Role Configurator**: Enter your target job title and job description, or load industry standard presets (*Senior Backend Engineer*, *Full Stack Architect*, *Cloud/DevOps Engineer*, *AI/LLM Systems Engineer*). Includes real-time requirement extraction.
 - **Self-Assessment Matrix**: List known languages, frameworks, and databases, and assign confidence levels (*Beginner*, *Intermediate*, *Expert*). The deterministic match engine recalculates your score and formula live in real-time.
@@ -35,7 +35,7 @@ Unlike conventional "black-box" AI resume tools that transmit unscrubbed candida
 
 ---
 
-## 🏛️ Architecture & Data Flow
+##  Architecture & Data Flow
 
 ```mermaid
 flowchart TD
@@ -113,7 +113,7 @@ npm run dev
 
 ---
 
-## 🧪 Testing & Verification
+##  Testing & Verification
 
 Run the comprehensive verification test suite:
 ```powershell
@@ -128,7 +128,7 @@ This verifies:
 
 ---
 
-## 🔒 Privacy Guarantee
+##  Privacy Guarantee
 
 Astria guarantees that **no candidate personal identifiable information (PII) leaves your local machine**. Presidio and spaCy sanitize text at the boundary before any prompts are transmitted to cloud AI providers.
 
