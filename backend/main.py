@@ -1,0 +1,305 @@
+"""
+Astria FastAPI Backend
+Provides local PII scrubbing, deterministic resume gap analysis,
+pedagogical learning roadmaps, and interactive AI tutoring.
+"""
+
+from __future__ import annotations
+import io
+import logging
+import uuid
+from typing import Any, Dict, List, Optional
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+# Local Service Imports
+from pii_scrubber import PIIScrubResult, scrubber
+from match_engine import MatchResult, match_engine
+from llm_service import (
+    TeachingCurriculum,
+    TailoredResumeResponse,
+    TutorReply,
+    llm_service,
+)
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("astria.main")
+
+# Initialize FastAPI App
+app = FastAPI(
+    title="Astria API",
+    description="Privacy-First AI Resume Gap Analysis & Pedagogical Roadmap Platform",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Enable CORS for Frontend Development (Vite default: http://localhost:5173)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# --- Helper Utilities ---
+
+def extract_text_from_upload(content: bytes, filename: str) -> str:
+    """Extracts raw text from uploaded PDF or plain text files."""
+    name_lower = filename.lower()
+    if name_lower.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(content))
+            pages_text = [page.extract_text() or "" for page in reader.pages]
+            return "\n".join(pages_text)
+        except Exception as e:
+            logger.error(f"Failed to parse PDF with pypdf: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unable to extract text from PDF '{filename}': {str(e)}"
+            )
+    else:
+        # Fallback to UTF-8 decoding with replacement
+        return content.decode("utf-8", errors="replace")
+
+
+# --- Request & Response Schemas ---
+
+class TextAnalyzeRequest(BaseModel):
+    resume_text: str = Field(..., description="Raw or pre-extracted resume text")
+    job_description: str = Field(..., description="Target job description")
+    target_role: Optional[str] = Field("Software Engineer", description="Target job role title")
+
+
+class AnalyzeResponse(BaseModel):
+    document_id: str
+    target_role: str
+    sanitized_resume_text: str
+    detected_pii: List[Dict[str, Any]]
+    pii_entity_counts: Dict[str, int]
+    pii_mapping: Dict[str, str]
+    is_presidio_powered: bool
+    match_result: MatchResult
+
+
+class GenerateRoadmapRequest(BaseModel):
+    target_role: str = Field("Software Engineer", description="Target role name")
+    missing_skills: List[str] = Field(default_factory=list, description="Completely missing skills")
+    partial_skills: List[Dict[str, Any]] = Field(default_factory=list, description="Partially matched / transferable skills")
+    matched_skills: List[str] = Field(default_factory=list, description="Already matched skills")
+    target_timeline_weeks: int = Field(default=4, ge=1, le=12, description="Curriculum duration in weeks")
+
+
+class TailorResumeRequest(BaseModel):
+    sanitized_resume_text: str
+    target_role: str
+    partial_skills: List[Dict[str, Any]] = Field(default_factory=list)
+    matched_skills: List[str] = Field(default_factory=list)
+
+
+class TutorChatRequest(BaseModel):
+    skill: str
+    user_message: str
+    context: Optional[str] = None
+
+
+class PIIScrubPreviewRequest(BaseModel):
+    text: str
+    mode: str = Field("pseudonymize", description="'pseudonymize' or 'redact'")
+
+
+# --- Endpoints ---
+
+@app.get("/")
+def root():
+    return {
+        "app": "Astria API",
+        "status": "online",
+        "version": "1.0.0",
+        "documentation": "/docs",
+        "scoring_formula": "Score = ((matched + 0.5 * partial) / total_required) * 100",
+        "pii_privacy_guarantee": "Local Presidio + spaCy processing before LLM invocation"
+    }
+
+
+@app.get("/health")
+def health_check():
+    """System health and subsystem diagnostics."""
+    return {
+        "status": "healthy",
+        "pii_engine": "presidio" if scrubber.analyzer else "regex_fallback",
+        "llm_client": llm_service.client_type,
+        "supported_entities": scrubber.SUPPORTED_ENTITIES
+    }
+
+
+@app.post("/api/pii/scrub", response_model=PIIScrubResult)
+def scrub_pii_preview(payload: PIIScrubPreviewRequest):
+    """
+    Preview local PII scrubbing for any raw text.
+    Replaces personal information with clean pseudonym tags (<PERSON_1>, <EMAIL_1>).
+    """
+    result = scrubber.scrub(payload.text, mode=payload.mode)
+    return result
+
+
+@app.post("/api/analyze", response_model=AnalyzeResponse)
+async def analyze_resume(
+    resume_file: Optional[UploadFile] = File(None),
+    resume_text: Optional[str] = Form(None),
+    job_description: str = Form(...),
+    target_role: Optional[str] = Form("Software Engineer")
+):
+    """
+    Primary Gap Analysis Pipeline:
+    1. Ingests resume (via PDF/file upload or raw text) and target job description.
+    2. Locally scrubs all PII (names, emails, phones, links) using Presidio & spaCy.
+    3. Runs deterministic gap analysis using the exact formula:
+       Score = ((matched + 0.5 * partial) / total_required) * 100
+    4. Returns sanitized resume, detected PII entities, and line-item match audit.
+    """
+    raw_resume = ""
+
+    # Handle file upload or form text
+    if resume_file:
+        file_bytes = await resume_file.read()
+        raw_resume = extract_text_from_upload(file_bytes, resume_file.filename or "resume.txt")
+    elif resume_text:
+        raw_resume = resume_text
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either 'resume_file' (PDF/TXT) or 'resume_text' must be provided."
+        )
+
+    if not raw_resume.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Resume content is empty or unreadable."
+        )
+
+    # 1. Local PII Scrubbing
+    pii_result: PIIScrubResult = scrubber.scrub(raw_resume, mode="pseudonymize")
+
+    # 2. Deterministic Gap Analysis
+    match_result: MatchResult = match_engine.evaluate_match(
+        resume_text=pii_result.sanitized_text,
+        job_description_text=job_description
+    )
+
+    doc_id = f"doc_{uuid.uuid4().hex[:10]}"
+
+    return AnalyzeResponse(
+        document_id=doc_id,
+        target_role=target_role or "Software Engineer",
+        sanitized_resume_text=pii_result.sanitized_text,
+        detected_pii=[e.model_dump() for e in pii_result.detected_entities],
+        pii_entity_counts=pii_result.entity_counts,
+        pii_mapping=pii_result.mapping,
+        is_presidio_powered=pii_result.is_presidio_powered,
+        match_result=match_result
+    )
+
+
+@app.post("/api/analyze/json", response_model=AnalyzeResponse)
+def analyze_resume_json(payload: TextAnalyzeRequest):
+    """
+    JSON-based alternative for /api/analyze (convenient for programmatic testing).
+    """
+    pii_result = scrubber.scrub(payload.resume_text, mode="pseudonymize")
+    match_result = match_engine.evaluate_match(
+        resume_text=pii_result.sanitized_text,
+        job_description_text=payload.job_description
+    )
+    doc_id = f"doc_{uuid.uuid4().hex[:10]}"
+
+    return AnalyzeResponse(
+        document_id=doc_id,
+        target_role=payload.target_role or "Software Engineer",
+        sanitized_resume_text=pii_result.sanitized_text,
+        detected_pii=[e.model_dump() for e in pii_result.detected_entities],
+        pii_entity_counts=pii_result.entity_counts,
+        pii_mapping=pii_result.mapping,
+        is_presidio_powered=pii_result.is_presidio_powered,
+        match_result=match_result
+    )
+
+
+@app.post("/api/generate-roadmap", response_model=TeachingCurriculum)
+async def generate_teaching_roadmap(payload: GenerateRoadmapRequest):
+    """
+    Generates a structured, milestone-based learning roadmap targeting missing and partial skills.
+    Connects to OpenAI / Gemini with structured JSON schema output.
+    """
+    try:
+        curriculum = await llm_service.generate_roadmap(
+            target_role=payload.target_role,
+            missing_skills=payload.missing_skills,
+            partial_skills=payload.partial_skills,
+            matched_skills=payload.matched_skills,
+            target_timeline_weeks=payload.target_timeline_weeks
+        )
+        return curriculum
+    except Exception as e:
+        logger.error(f"Error generating roadmap: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate curriculum: {str(e)}"
+        )
+
+
+@app.post("/api/tailor-resume", response_model=TailoredResumeResponse)
+async def tailor_resume(payload: TailorResumeRequest):
+    """
+    Generates tailored, high-impact bullet points framing candidate transferable skills toward JD.
+    """
+    try:
+        response = await llm_service.tailor_resume_bullets(
+            sanitized_resume_text=payload.sanitized_resume_text,
+            target_role=payload.target_role,
+            partial_skills=payload.partial_skills,
+            matched_skills=payload.matched_skills
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error tailoring resume: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to tailor resume: {str(e)}"
+        )
+
+
+@app.post("/api/tutor/chat", response_model=TutorReply)
+async def tutor_chat(payload: TutorChatRequest):
+    """
+    Interactive Socratic AI Tutor session for deep-diving into specific gap skills.
+    """
+    try:
+        reply = await llm_service.tutor_chat(
+            skill=payload.skill,
+            user_message=payload.user_message,
+            context=payload.context
+        )
+        return reply
+    except Exception as e:
+        logger.error(f"Error in tutor chat: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tutor chat error: {str(e)}"
+        )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
