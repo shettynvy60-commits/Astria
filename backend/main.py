@@ -23,6 +23,9 @@ from llm_service import (
     llm_service,
 )
 
+# AI Resume Assistant Module (Content Generation, ATS, Grammar, Job Match, Design)
+from ai_module.routes.ai_routes import router as ai_resume_router
+
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("astria.main")
@@ -50,6 +53,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount AI Resume Assistant endpoints under /api/ai/*
+app.include_router(ai_resume_router)
 
 
 # --- Helper Utilities ---

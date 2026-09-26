@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Resume Builder — Interactive API Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0F19;
+      --card-bg: #111827;
+      --card-border: #1F2937;
+      --accent: #3B82F6;
+      --accent-hover: #2563EB;
+      --accent-glow: rgba(59, 130, 246, 0.25);
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --text: #F9FAFB;
+      --text-muted: #9CA3AF;
+      --code-bg: #030712;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo-badge {
+      background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+      color: white;
+      font-weight: 800;
+      font-size: 18px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    h1 { font-size: 24px; font-weight: 800; }
+    .subtitle { color: var(--text-muted); font-size: 14px; }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #1F2937;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      border: 1px solid #374151;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+
+    /* Navigation Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      background: #1F2937;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { background: #374151; color: var(--text); }
+    .tab-btn.active {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    /* Content Area */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 900px) { .tab-panel.active { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #60A5FA;
+    }
+
+    /* Form Elements */
+    label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block; }
+    input, textarea, select {
+      width: 100%;
+      background: #030712;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+    textarea { min-height: 90px; resize: vertical; }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Results Box */
+    .result-box {
+      background: var(--code-bg);
+      border: 1px solid #1F2937;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      overflow-y: auto;
+      max-height: 480px;
+    }
+    .bullet-item {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .bullet-item::before {
+      content: "•";
+      color: var(--accent);
+      font-size: 20px;
+      position: absolute;
+      left: 4px;
+      top: -2px;
+    }
+    .badge {
+      display: inline-block;
+      background: #1E293B;
+      color: #93C5FD;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin: 2px 4px 2px 0;
+      font-weight: 500;
+    }
+    .score-circle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 4px solid var(--success);
+      font-size: 24px;
+      font-weight: 800;
+      margin: 12px auto;
+      color: var(--success);
+    }
+    pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #A7F3D0;
+    }
+    .quick-links {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .quick-links a { color: #60A5FA; text-decoration: none; font-weight: 600; }
+    .quick-links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo-badge">AI</div>
+        <div>
+          <h1>Resume Builder AI Engine</h1>
+          <p class="subtitle">Microservice & Modular API Layer for Student Resume Platform</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap: 16px;">
+        <div class="quick-links">
+          <a href="/docs" target="_blank">📖 Swagger API Docs</a>
+          <a href="/redoc" target="_blank">📋 ReDoc</a>
+        </div>
+        <div class="status-badge" id="engineStatus">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Checking Engine...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('bullets')">1. Bullet Point Expander</button>
+      <button class="tab-btn" onclick="switchTab('summary')">2. Summary & Objective</button>
+      <button class="tab-btn" onclick="switchTab('sections')">3. Blank Page Helper</button>
+      <button class="tab-btn" onclick="switchTab('grammar')">4. Grammar & Verbs</button>
+      <button class="tab-btn" onclick="switchTab('ats')">5. ATS Score & JD Match</button>
+      <button class="tab-btn" onclick="switchTab('design')">6. Design & 1-Page Check</button>
+    </div>
+
+    <!-- 1. BULLET EXPANDER -->
+    <div class="tab-panel active" id="tab-bullets">
+      <div class="card">
+        <div class="card-title">✨ 1-Line to STAR Bullets</div>
+        <p class="subtitle">Transforms a casual note into 3-4 professional bullet points using STAR format and action verbs.</p>
+        <div>
+          <label>Casual Note / Rough Draft</label>
+          <input type="text" id="bulletInput" value="internship at Infosys" placeholder="e.g. internship at Infosys or built e-commerce app">
+        </div>
+        <div>
+          <label>Target Role (Optional)</label>
+          <input type="text" id="bulletRole" value="Software Engineering Intern">
+        </div>
+        <div>
+          <label>Technologies Used (Comma separated)</label>
+          <input type="text" id="bulletTech" value="Python, FastAPI, React, PostgreSQL">
+        </div>
+        <button class="btn" id="bulletBtn" onclick="runBulletExpander()">Generate Professional Bullets</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Generated Bullet Points</div>
+        <div class="result-box" id="bulletResult">Click 'Generate Professional Bullets' to see results.</div>
+      </div>
+    </div>
+
+    <!-- 2. SUMMARY & OBJECTIVE -->
+    <div class="tab-panel" id="tab-summary">
+      <div class="card">
+        <div class="card-title">🎯 Summary & Objective Generator</div>
+        <p class="subtitle">Creates polished, tailored statements for your resume header based on skills and branch.</p>
+        <div>
+          <label>Target Role</label>
+          <input type="text" id="summaryRole" value="Full Stack Web Developer">
+        </div>
+        <div>
+          <label>Experience Level</label>
+          <select id="summaryLevel">
+            <option value="student" selected>Student / Fresher</option>
+            <option value="entry-level">Entry-Level (0-2 Years)</option>
+            <option value="mid-level">Mid-Level (3-5 Years)</option>
+          </select>
+        </div>
+        <div>
+          <label>Key Skills (Comma separated)</label>
+          <input type="text" id="summarySkills" value="Python, React, TypeScript, FastAPI, SQL, Docker, Git">
+        </div>
+        <div>
+          <label>Proudest Project or Highlight (Optional)</label>
+          <input type="text" id="summaryHighlight" value="Built a real-time collaborative platform with 500+ active users">
+        </div>
+        <button class="btn" onclick="runSummaryGenerator()">Generate Summary & Pitch</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Generated Summary</div>
+        <div class="result-box" id="summaryResult">Click 'Generate Summary & Pitch' to test.</div>
+      </div>
+    </div>
+
+    <!-- 3. BLANK PAGE HELPER -->
+    <div class="tab-panel" id="tab-sections">
+      <div class="card">
+        <div class="card-title">📄 'No Blank Page' Section Blueprints</div>
+        <p class="subtitle">Suggests recommended projects, skills taxonomy, and coursework for your branch.</p>
+        <div>
+          <label>Branch / Discipline</label>
+          <select id="sectionBranch">
+            <option value="ISE / CSE (Information Science & Engineering)" selected>ISE / CSE (Computer Science)</option>
+            <option value="ECE (Electronics & Communication)">ECE (Electronics)</option>
+            <option value="MBA / Business Management">MBA / Business & Management</option>
+            <option value="Data Science & AI">Data Science & AI</option>
+          </select>
+        </div>
+        <div>
+          <label>Target Role</label>
+          <input type="text" id="sectionRole" value="Software Engineer">
+        </div>
+        <button class="btn" onclick="runSectionSuggestion()">Get Section Blueprint</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Recommended Blueprints</div>
+        <div class="result-box" id="sectionResult">Select branch and role to generate recommendations.</div>
+      </div>
+    </div>
+
+    <!-- 4. GRAMMAR & VERBS -->
+    <div class="tab-panel" id="tab-grammar">
+      <div class="card">
+        <div class="card-title">🛠️ Grammar & Action Verb Enhancer</div>
+        <p class="subtitle">Converts passive phrases like 'did coding' into high-power recruiter verbs.</p>
+        <div>
+          <label>Draft Bullet or Sentence</label>
+          <textarea id="grammarInput">did coding for the college portal website and helped with bugs.</textarea>
+        </div>
+        <div style="display:flex; gap: 12px;">
+          <button class="btn" onclick="runVerbEnhance()">🚀 Upgrade Verbs</button>
+          <button class="btn" style="background:#4B5563;" onclick="runGrammarFix()">✍️ Fix Grammar & Tone</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Polished Output</div>
+        <div class="result-box" id="grammarResult">Test verb enhancement or grammar fixing.</div>
+      </div>
+    </div>
+
+    <!-- 5. ATS SCORE & JD MATCH -->
+    <div class="tab-panel" id="tab-ats">
+      <div class="card">
+        <div class="card-title">📊 ATS Scoring & Job Matcher</div>
+        <p class="subtitle">Analyzes your resume against corporate ATS filters and Job Descriptions.</p>
+        <div>
+          <label>Resume Text</label>
+          <textarea id="atsResume" style="min-height:120px;">EDUCATION: B.E. in Information Science and Engineering (ISE), 2026.
+SKILLS: Python, React, SQL, Git, FastAPI, HTML, CSS.
+EXPERIENCE: Software Engineering Intern at TechCorp. Developed and deployed RESTful microservices using Python and PostgreSQL.
+PROJECTS: Real-time Chat Application using WebSockets and React. Optimized query latency by 35%.</textarea>
+        </div>
+        <div>
+          <label>Target Job Description</label>
+          <textarea id="atsJd" style="min-height:90px;">We are seeking a Software Engineer proficient in Python, FastAPI, Docker, and SQL. Familiarity with AWS and CI/CD pipelines is a plus.</textarea>
+        </div>
+        <div style="display:flex; gap: 12px;">
+          <button class="btn" onclick="runAtsScore()">🎯 Calculate ATS Score</button>
+          <button class="btn" style="background:#059669;" onclick="runJobMatch()">🔗 Match & Tailor to JD</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">ATS & Matching Analysis</div>
+        <div class="result-box" id="atsResult">Run ATS Score or Job Match to view diagnostics.</div>
+      </div>
+    </div>
+
+    <!-- 6. DESIGN & 1-PAGE CHECK -->
+    <div class="tab-panel" id="tab-design">
+      <div class="card">
+        <div class="card-title">🎨 Design & 1-Page Layout Optimizer</div>
+        <p class="subtitle">Recommends the best resume template for your branch and checks 1-page length compliance.</p>
+        <div>
+          <label>Branch / Discipline</label>
+          <select id="designBranch">
+            <option value="ISE">Information Science / Computer Science (ISE/CSE)</option>
+            <option value="MBA">MBA / Business / Finance</option>
+            <option value="Design">UI/UX & Product Design</option>
+          </select>
+        </div>
+        <div style="margin-top:12px;">
+          <label>Resume Text for Length Check</label>
+          <textarea id="lengthInput" style="min-height:90px;">Paste your resume text here to evaluate word density, page count, and trimming advice...</textarea>
+        </div>
+        <div style="display:flex; gap: 12px; margin-top: 12px;">
+          <button class="btn" onclick="runTemplateRecommend()">📐 Recommend Template</button>
+          <button class="btn" style="background:#8B5CF6;" onclick="runLengthCheck()">📏 Check 1-Page Rule</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Design Recommendations</div>
+        <div class="result-box" id="designResult">Click to evaluate template layout and 1-page length.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab Switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    // Health Check on Load
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/ai/health');
+        const data = await res.json();
+        document.getElementById('statusText').innerText = data.active_engine;
+        document.getElementById('statusDot').style.background = data.gemini_configured ? '#10B981' : '#3B82F6';
+      } catch (err) {
+        document.getElementById('statusText').innerText = 'Offline / Connecting';
+        document.getElementById('statusDot').style.background = '#EF4444';
+      }
+    }
+    checkHealth();
+
+    // 1. Bullets
+    async function runBulletExpander() {
+      const box = document.getElementById('bulletResult');
+      box.innerHTML = "<em>✨ Expanding into STAR bullet points...</em>";
+      const tech = document.getElementById('bulletTech').value.split(',').map(s => s.trim()).filter(Boolean);
+      try {
+        const res = await fetch('/api/ai/bullets/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            raw_input: document.getElementById('bulletInput').value,
+            role_or_title: document.getElementById('bulletRole').value,
+            technologies: tech,
+            num_bullets: 3
+          })
+        });
+        const data = await res.json();
+        let html = `<div style="margin-bottom:12px;"><span class="badge" style="background:#1E3A8A; color:#93C5FD;">Source: ${data.source}</span></div>`;
+        data.bullets.forEach(b => {
+          html += `<div class="bullet-item">${b}</div>`;
+        });
+        if (data.power_keywords_used?.length) {
+          html += `<div style="margin-top:16px;"><strong>Keywords Incorporated:</strong><br>`;
+          data.power_keywords_used.forEach(k => html += `<span class="badge">${k}</span>`);
+          html += `</div>`;
+        }
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 2. Summary
+    async function runSummaryGenerator() {
+      const box = document.getElementById('summaryResult');
+      box.innerHTML = "<em>Generating summary...</em>";
+      const skills = document.getElementById('summarySkills').value.split(',').map(s => s.trim()).filter(Boolean);
+      try {
+        const res = await fetch('/api/ai/summary/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target_role: document.getElementById('summaryRole').value,
+            experience_level: document.getElementById('summaryLevel').value,
+            skills: skills,
+            key_highlights: document.getElementById('summaryHighlight').value
+          })
+        });
+        const data = await res.json();
+        box.innerHTML = `
+          <div style="margin-bottom:12px;"><span class="badge">Source: ${data.source}</span></div>
+          <div style="margin-bottom:14px;"><strong>Professional Summary:</strong><p style="margin-top:4px; line-height:1.6;">${data.professional_summary}</p></div>
+          <div style="margin-bottom:14px;"><strong>Career Objective (For Fresher):</strong><p style="margin-top:4px; line-height:1.6;">${data.career_objective}</p></div>
+          <div><strong>1-Sentence Pitch:</strong><p style="margin-top:4px; color:#60A5FA;">"${data.short_pitch}"</p></div>
+        `;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 3. Sections Blueprint
+    async function runSectionSuggestion() {
+      const box = document.getElementById('sectionResult');
+      box.innerHTML = "<em>Curating blueprint...</em>";
+      try {
+        const res = await fetch('/api/ai/sections/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field_or_branch: document.getElementById('sectionBranch').value,
+            target_role: document.getElementById('sectionRole').value
+          })
+        });
+        const data = await res.json();
+        let html = `<div style="margin-bottom:12px;"><span class="badge">Source: ${data.source}</span></div>`;
+        html += `<strong style="color:#60A5FA;">Recommended Projects:</strong><br>`;
+        data.suggested_projects.forEach(p => {
+          html += `<div style="background:#1F2937; padding:10px; border-radius:8px; margin:8px 0;">
+            <strong>${p.title}</strong><br>
+            <span style="font-size:12px; color:#9CA3AF;">Tech: ${p.tech_stack.join(', ')}</span>
+            <p style="font-size:13px; margin-top:4px;">${p.description}</p>
+          </div>`;
+        });
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 4. Verbs
+    async function runVerbEnhance() {
+      const box = document.getElementById('grammarResult');
+      box.innerHTML = "<em>Upgrading action verbs...</em>";
+      try {
+        const res = await fetch('/api/ai/verbs/enhance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: document.getElementById('grammarInput').value })
+        });
+        const data = await res.json();
+        let html = `<div style="margin-bottom:12px;"><span class="badge">Source: ${data.source}</span></div>`;
+        html += `<strong>Original:</strong><p style="color:#9CA3AF; margin-bottom:10px;">${data.original_text}</p>`;
+        html += `<strong>Enhanced with Power Verbs:</strong><p style="color:#34D399; font-weight:600; margin-bottom:12px;">${data.enhanced_text}</p>`;
+        if (data.verbs_replaced?.length) {
+          html += `<strong>Replaced Verbs:</strong><br>`;
+          data.verbs_replaced.forEach(v => {
+            html += `<span class="badge" style="background:#374151; color:#FCD34D;">${v.original} ➔ ${v.replacement}</span><br>`;
+          });
+        }
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 4b. Grammar
+    async function runGrammarFix() {
+      const box = document.getElementById('grammarResult');
+      box.innerHTML = "<em>Polishing grammar & tone...</em>";
+      try {
+        const res = await fetch('/api/ai/grammar/fix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: document.getElementById('grammarInput').value })
+        });
+        const data = await res.json();
+        let html = `<div style="margin-bottom:12px;"><span class="badge">Source: ${data.source}</span></div>`;
+        html += `<strong>Improved Text:</strong><p style="color:#60A5FA; margin-bottom:12px; line-height:1.6;">${data.improved_text}</p>`;
+        html += `<strong>Tone:</strong> <span class="badge">${data.tone}</span><br><br>`;
+        if (data.improvements_made?.length) {
+          html += `<strong>Improvements Made:</strong><ul>`;
+          data.improvements_made.forEach(m => html += `<li>${m}</li>`);
+          html += `</ul>`;
+        }
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 5. ATS Score
+    async function runAtsScore() {
+      const box = document.getElementById('atsResult');
+      box.innerHTML = "<em>Calculating ATS score and keyword density...</em>";
+      try {
+        const res = await fetch('/api/ai/ats/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume_text: document.getElementById('atsResume').value,
+            job_description: document.getElementById('atsJd').value
+          })
+        });
+        const data = await res.json();
+        let html = `
+          <div style="text-align:center;">
+            <div class="score-circle">${data.overall_score}</div>
+            <div style="font-weight:700; font-size:16px;">Grade: ${data.grade}</div>
+            <span class="badge">Source: ${data.source}</span>
+          </div>
+          <div style="margin-top:16px;"><strong>Missing Critical Keywords:</strong><br>`;
+        data.missing_critical_keywords.forEach(k => html += `<span class="badge" style="background:#7F1D1D; color:#FECACA;">+ ${k}</span>`);
+        html += `</div><div style="margin-top:12px;"><strong>Actionable Recommendations:</strong><ul>`;
+        data.actionable_recommendations.forEach(r => html += `<li>${r}</li>`);
+        html += `</ul></div>`;
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 5b. Job Match
+    async function runJobMatch() {
+      const box = document.getElementById('atsResult');
+      box.innerHTML = "<em>Matching resume with JD...</em>";
+      try {
+        const res = await fetch('/api/ai/job-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume_text: document.getElementById('atsResume').value,
+            job_description: document.getElementById('atsJd').value
+          })
+        });
+        const data = await res.json();
+        let html = `
+          <div style="text-align:center;">
+            <div class="score-circle" style="border-color:#3B82F6; color:#60A5FA;">${data.match_percentage}%</div>
+            <div style="font-weight:700;">${data.compatibility_level}</div>
+            <span class="badge">Source: ${data.source}</span>
+          </div>
+          <div style="margin-top:16px;"><strong>Tailored Summary Suggestion:</strong><p style="margin-top:4px;">${data.tailored_summary_suggestion}</p></div>
+        `;
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 6. Template Recommend
+    async function runTemplateRecommend() {
+      const box = document.getElementById('designResult');
+      box.innerHTML = "<em>Analyzing branch styling...</em>";
+      try {
+        const res = await fetch('/api/ai/design/recommend-template', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branch_or_domain: document.getElementById('designBranch').value,
+            target_role: "Software / Tech Role"
+          })
+        });
+        const data = await res.json();
+        box.innerHTML = `
+          <div style="margin-bottom:12px;"><span class="badge">Source: ${data.source}</span></div>
+          <h3>${data.template_name}</h3>
+          <p style="color:#60A5FA; margin-bottom:8px;">Layout: ${data.layout_type}</p>
+          <p>${data.why_recommended}</p>
+          <div style="margin-top:12px;"><strong>Recommended Fonts:</strong> ${data.recommended_fonts.join(', ')}</div>
+          <div style="margin-top:8px;"><strong>Color Advice:</strong> ${data.color_palette_advice}</div>
+        `;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+
+    // 6b. Length Check
+    async function runLengthCheck() {
+      const box = document.getElementById('designResult');
+      box.innerHTML = "<em>Checking length compliance...</em>";
+      try {
+        const res = await fetch('/api/ai/length/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume_text: document.getElementById('lengthInput').value || document.getElementById('atsResume').value
+          })
+        });
+        const data = await res.json();
+        box.innerHTML = `
+          <div style="margin-bottom:12px;"><span class="badge">Source: ${data.source}</span></div>
+          <h4>${data.verdict}</h4>
+          <p>Word Count: ${data.estimated_word_count} (~${data.estimated_pages} pages)</p>
+          <div style="margin-top:12px;"><strong>Trimming Suggestions:</strong><ul>
+            ${data.trimming_suggestions.map(s => `<li>${s}</li>`).join('')}
+          </ul></div>
+        `;
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>
