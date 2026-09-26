@@ -28,8 +28,9 @@ Unlike conventional "black-box" AI resume tools that transmit unscrubbed candida
 
 - **Target Role Configurator**: Enter your target job title and job description, or load industry standard presets (*Senior Backend Engineer*, *Full Stack Architect*, *Cloud/DevOps Engineer*, *AI/LLM Systems Engineer*). Includes real-time requirement extraction.
 - **Self-Assessment Matrix**: List known languages, frameworks, and databases, and assign confidence levels (*Beginner*, *Intermediate*, *Expert*). The deterministic match engine recalculates your score and formula live in real-time.
-- **ATS Gap Analysis Dashboard**: Radial SVG gauge with audit expressions, interactive skill badges, and PII redaction inspection.
+- **ATS Gap Analysis Dashboard**: Radial SVG gauge with audit expressions, interactive skill badges, multi-format doc parsing (PDF & DOCX), and PII redaction inspection.
 - **Weekly Learning Roadmap**: Week-by-week sprints, hands-on portfolio deliverables, and common interview pitfalls.
+- **Socratic AI Tutor Sandbox**: Interactive mentor modal with live Socratic chat, architectural trade-off starters, and 4-option adaptive diagnostic quizzes with instant explanations.
 - **ATS Resume Tailor**: Generates high-impact resume bullet points framing transferable technical exposure into target role competencies.
 
 ---

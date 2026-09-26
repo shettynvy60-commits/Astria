@@ -146,7 +146,7 @@ class PIIScrubber:
         return self._scrub_with_regex(text, mode=mode)
 
     def _scrub_with_presidio(self, text: str, mode: str = "pseudonymize") -> PIIScrubResult:
-        """Execute Presidio-powered NER analysis and sequential pseudonymization."""
+        """Execute Presidio-powered NER analysis and sequential pseudonymization with span de-overlap."""
         entities_to_scan = self.SUPPORTED_ENTITIES + ["LINKEDIN_PROFILE", "GITHUB_PROFILE"]
         results: List[RecognizerResult] = self.analyzer.analyze(
             text=text,
@@ -154,16 +154,33 @@ class PIIScrubber:
             language="en"
         )
 
-        # Sort results from end of text to start to allow clean character offset replacements
-        sorted_results = sorted(results, key=lambda res: res.start, reverse=True)
+        # De-duplicate and resolve overlapping spans (prefer longer span or higher score)
+        # Sort by start asc, then span length desc, then score desc
+        sorted_candidates = sorted(
+            results,
+            key=lambda r: (r.start, -(r.end - r.start), -r.score)
+        )
+
+        non_overlapping: List[RecognizerResult] = []
+        last_end = -1
+        for res in sorted_candidates:
+            if res.start >= last_end:
+                non_overlapping.append(res)
+                last_end = res.end
+            else:
+                # Overlap: skip or ignore since prior candidate has higher priority/length
+                continue
+
+        # Sort reverse by start for clean character slice replacement
+        reverse_results = sorted(non_overlapping, key=lambda res: res.start, reverse=True)
 
         detected_entities: List[DetectedEntity] = []
         entity_counters: Dict[str, int] = {}
         mapping: Dict[str, str] = {}
         sanitized_chars = list(text)
 
-        # Sequential replacement pass
-        for res in sorted_results:
+        # Sequential replacement pass from end of string to start
+        for res in reverse_results:
             original_val = text[res.start:res.end]
             entity_type = res.entity_type
 
@@ -212,73 +229,122 @@ class PIIScrubber:
     def _scrub_with_regex(self, text: str, mode: str = "pseudonymize") -> PIIScrubResult:
         """
         Deterministic, zero-dependency regex engine that strips emails, phone numbers,
-        social links, and common resume header names.
+        social links, and common resume header names with exact span slice replacement.
         """
-        sanitized = text
+        raw_spans: List[Tuple[int, int, str, str, float]] = []
+
+        # 1. First check for explicit labeled candidate names (e.g. "Name: Jane Doe")
+        name_label_pattern = re.compile(
+            r"(?:^|\n)\s*(?:Name|Candidate|Full\s*Name)\s*:\s*([A-Z][a-zA-Z.'-]+(?:\s+[A-Z][a-zA-Z.'-]+){1,3})",
+            re.IGNORECASE
+        )
+        for match in name_label_pattern.finditer(text):
+            val = match.group(1).strip()
+            start, end = match.start(1), match.end(1)
+            raw_spans.append((start, end, "PERSON", val, 0.95))
+
+        # 2. Check header name heuristic: first line if capitalized 2-4 word person name
+        lines = text.splitlines()
+        first_line_info = None
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped:
+                # Find start character position in text
+                line_start = text.find(stripped)
+                line_end = line_start + len(stripped)
+                first_line_info = (line_start, line_end, stripped)
+                break
+
+        if first_line_info:
+            l_start, l_end, l_text = first_line_info
+            non_name_words = {
+                "resume", "curriculum", "vitae", "summary", "profile", "developer", "engineer",
+                "software", "architect", "lead", "senior", "junior", "objective", "experience",
+                "education", "skills", "projects", "contact", "phone", "email", "address",
+                "portfolio", "certified", "professional", "backend", "frontend", "fullstack",
+                "data", "cloud", "consultant", "analyst", "manager", "intern"
+            }
+            # Check if line consists of 2-4 capitalized name words without punctuation or digits
+            words = l_text.split()
+            if 2 <= len(words) <= 4:
+                is_valid_name = all(
+                    re.match(r"^[A-Z][a-zA-Z.'-]+$", w) and w.lower() not in non_name_words
+                    for w in words
+                )
+                if is_valid_name and not re.search(r"[:@/\\0-9]", l_text):
+                    raw_spans.append((l_start, l_end, "PERSON", l_text, 0.90))
+
+        # 3. High-precision regexes for emails, phones, URLs, and profiles
+        patterns = [
+            ("EMAIL_ADDRESS", r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", 0.98),
+            ("PHONE_NUMBER", r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b", 0.95),
+            ("LINKEDIN_PROFILE", r"(?:https?:\/\/)?(?:www\.)?linkedin\.com\/(?:in|pub)\/[a-zA-Z0-9_-]+", 0.96),
+            ("GITHUB_PROFILE", r"(?:https?:\/\/)?(?:www\.)?github\.com\/[a-zA-Z0-9_-]+(?:\/)?", 0.94),
+            ("US_SSN", r"\b\d{3}-\d{2}-\d{4}\b", 0.99),
+            ("URL", r"https?:\/\/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s.,;)]*)?", 0.88),
+        ]
+
+        for entity_type, pattern_str, conf in patterns:
+            for match in re.finditer(pattern_str, text, re.IGNORECASE):
+                raw_spans.append((match.start(), match.end(), entity_type, match.group(0), conf))
+
+        # Resolve overlapping spans: sort by start asc, length desc, confidence desc
+        sorted_spans = sorted(
+            raw_spans,
+            key=lambda x: (x[0], -(x[1] - x[0]), -x[4])
+        )
+
+        non_overlapping = []
+        last_end = -1
+        for start, end, etype, val, conf in sorted_spans:
+            if start >= last_end:
+                non_overlapping.append((start, end, etype, val, conf))
+                last_end = end
+
+        # Sort reverse by start for exact character slice replacement
+        reverse_spans = sorted(non_overlapping, key=lambda x: x[0], reverse=True)
+
         detected: List[DetectedEntity] = []
         mapping: Dict[str, str] = {}
         counters: Dict[str, int] = {}
+        sanitized_chars = list(text)
 
-        patterns = [
-            ("EMAIL_ADDRESS", r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"),
-            ("PHONE_NUMBER", r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"),
-            ("LINKEDIN_PROFILE", r"(?:https?:\/\/)?(?:www\.)?linkedin\.com\/(?:in|pub)\/[a-zA-Z0-9_-]+"),
-            ("GITHUB_PROFILE", r"(?:https?:\/\/)?(?:www\.)?github\.com\/[a-zA-Z0-9_-]+(?:\/)?"),
-            ("US_SSN", r"\b\d{3}-\d{2}-\d{4}\b"),
-            ("URL", r"https?:\/\/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?")
-        ]
+        for start, end, entity_type, val, conf in reverse_spans:
+            # Re-use placeholder for identical entities of same type
+            existing_ph = None
+            for ph, orig in mapping.items():
+                if orig.lower() == val.lower() and ph.startswith(f"<{entity_type}"):
+                    existing_ph = ph
+                    break
 
-        # Scan each pattern
-        for entity_type, pattern_str in patterns:
-            for match in re.finditer(pattern_str, sanitized, re.IGNORECASE):
-                val = match.group(0)
-                if val in mapping.values():
-                    continue
+            if existing_ph:
+                ph = existing_ph
+            else:
                 count = counters.get(entity_type, 0) + 1
                 counters[entity_type] = count
                 ph = f"<{entity_type}_{count}>" if mode == "pseudonymize" else f"[{entity_type}]"
                 mapping[ph] = val
-                detected.append(
-                    DetectedEntity(
-                        entity_type=entity_type,
-                        original_value=val,
-                        placeholder=ph,
-                        start=match.start(),
-                        end=match.end(),
-                        confidence=0.92
-                    )
+
+            detected.append(
+                DetectedEntity(
+                    entity_type=entity_type,
+                    original_value=val,
+                    placeholder=ph,
+                    start=start,
+                    end=end,
+                    confidence=conf
                 )
+            )
 
-        # Substitute found entities
-        for ph, orig in mapping.items():
-            sanitized = sanitized.replace(orig, ph)
+            # In-place character slice replacement
+            sanitized_chars[start:end] = list(ph)
 
-        # Resume Header Name Heuristic: Often the first line of a resume is the person's name
-        lines = [line.strip() for line in sanitized.splitlines() if line.strip()]
-        if lines:
-            first_line = lines[0]
-            # If the first line is short (2-4 words) and contains letters without punctuation/tech buzzwords
-            words = first_line.split()
-            tech_keywords = {"resume", "curriculum", "vitae", "summary", "profile", "developer", "engineer"}
-            if 1 <= len(words) <= 4 and not any(w.lower() in tech_keywords for w in words):
-                if not re.search(r"[:@/\\0-9]", first_line):
-                    name_ph = "<PERSON_1>" if mode == "pseudonymize" else "[PERSON]"
-                    if name_ph not in mapping:
-                        mapping[name_ph] = first_line
-                        counters["PERSON"] = 1
-                        detected.insert(0, DetectedEntity(
-                            entity_type="PERSON",
-                            original_value=first_line,
-                            placeholder=name_ph,
-                            start=0,
-                            end=len(first_line),
-                            confidence=0.88
-                        ))
-                        sanitized = sanitized.replace(first_line, name_ph, 1)
+        sanitized_text = "".join(sanitized_chars)
+        detected.reverse()
 
         return PIIScrubResult(
             original_text=text,
-            sanitized_text=sanitized,
+            sanitized_text=sanitized_text,
             detected_entities=detected,
             entity_counts=counters,
             mapping=mapping,
@@ -286,9 +352,10 @@ class PIIScrubber:
         )
 
     def restore(self, sanitized_text: str, mapping: Dict[str, str]) -> str:
-        """Restores pseudonyms back to original text for safe local display."""
+        """Restores pseudonyms back to original text safely without substring collisions."""
         restored = sanitized_text
-        for placeholder, original in mapping.items():
+        # Sort placeholders descending by length to prevent <PERSON_1> from clobbering <PERSON_10>
+        for placeholder, original in sorted(mapping.items(), key=lambda item: len(item[0]), reverse=True):
             restored = restored.replace(placeholder, original)
         return restored
 

@@ -7,6 +7,7 @@ import ScoreGauge from './components/ScoreGauge';
 import SkillBadges from './components/SkillBadges';
 import RoadmapView from './components/RoadmapView';
 import TailoredResume from './components/TailoredResume';
+import AITutorSandbox from './components/AITutorSandbox';
 import { 
   ShieldCheck, 
   Eye, 
@@ -90,6 +91,21 @@ export default function App() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [roadmapData, setRoadmapData] = useState(null);
   const [tailoredData, setTailoredData] = useState(null);
+
+  // Socratic AI Tutor Sandbox State
+  const [tutorSession, setTutorSession] = useState({
+    isOpen: false,
+    skill: 'PostgreSQL',
+    moduleTitle: 'Core Architecture & Indexing'
+  });
+
+  const handleOpenTutor = (skillName, moduleTitle) => {
+    setTutorSession({
+      isOpen: true,
+      skill: skillName || 'System Design',
+      moduleTitle: moduleTitle || 'Curriculum Module'
+    });
+  };
 
   // Check Backend Connection on Mount
   useEffect(() => {
@@ -778,6 +794,7 @@ export default function App() {
                       targetRole={targetRole}
                       missingSkillsCount={analysisResult.match_result.missing_skills.length}
                       partialSkillsCount={analysisResult.match_result.partial_skills.length}
+                      onOpenTutor={handleOpenTutor}
                     />
                   </div>
                 )}
@@ -815,6 +832,7 @@ export default function App() {
               targetRole={targetRole}
               missingSkillsCount={analysisResult?.match_result.missing_skills.length || 0}
               partialSkillsCount={analysisResult?.match_result.partial_skills.length || 0}
+              onOpenTutor={handleOpenTutor}
             />
           </div>
         )}
@@ -831,6 +849,14 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Socratic AI Tutor Sandbox Modal */}
+      <AITutorSandbox
+        isOpen={tutorSession.isOpen}
+        skill={tutorSession.skill}
+        moduleTitle={tutorSession.moduleTitle}
+        onClose={() => setTutorSession((prev) => ({ ...prev, isOpen: false }))}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 bg-slate-950/80 backdrop-blur-md">

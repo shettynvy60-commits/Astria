@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, BookOpen, Terminal, HelpCircle, ExternalLink, ChevronDown, ChevronUp, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Calendar, BookOpen, Terminal, HelpCircle, ExternalLink, ChevronDown, ChevronUp, Sparkles, CheckCircle2, Bot } from 'lucide-react';
 
 export default function RoadmapView({
   roadmap,
@@ -7,7 +7,8 @@ export default function RoadmapView({
   isLoading,
   targetRole,
   missingSkillsCount = 0,
-  partialSkillsCount = 0
+  partialSkillsCount = 0,
+  onOpenTutor
 }) {
   const [expandedModules, setExpandedModules] = useState({});
   const [activeInterviewToggles, setActiveInterviewToggles] = useState({});
@@ -131,6 +132,20 @@ export default function RoadmapView({
                         </h5>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-400">
+                        {onOpenTutor && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenTutor(mod.focus_skill, mod.title);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-brand-950 text-brand-300 hover:text-white hover:bg-brand-900 border border-brand-500/40 transition-colors shadow-sm"
+                            title="Open Socratic AI Tutor Sandbox"
+                          >
+                            <Bot className="w-3.5 h-3.5 text-brand-400" />
+                            <span className="hidden sm:inline">AI Tutor</span>
+                          </button>
+                        )}
                         <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                           {mod.difficulty}
                         </span>
@@ -237,6 +252,24 @@ export default function RoadmapView({
                                 <span>{res.title}</span>
                               </a>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Interactive Practice Banner */}
+                        {onOpenTutor && (
+                          <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-brand-500/30 text-xs">
+                            <div className="flex items-center gap-2.5 text-slate-300">
+                              <Bot className="w-4 h-4 text-brand-400 shrink-0" />
+                              <span>Stuck on <strong>{mod.focus_skill}</strong>? Practice live Socratic Q&A and diagnostic quizzes.</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onOpenTutor(mod.focus_skill, mod.title)}
+                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white shadow-sm glow-brand transition-all flex items-center gap-1.5 shrink-0"
+                            >
+                              <Bot className="w-3.5 h-3.5" />
+                              <span>Launch AI Tutor Sandbox</span>
+                            </button>
                           </div>
                         )}
                       </div>

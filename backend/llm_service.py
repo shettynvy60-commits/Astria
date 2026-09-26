@@ -6,6 +6,7 @@ Includes intelligent offline mock generators for zero-configuration testing.
 """
 
 from __future__ import annotations
+import asyncio
 import json
 import logging
 import os
@@ -13,6 +14,48 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("astria.llm_service")
+
+# --- Environment & Configuration Helper ---
+
+def load_env_file() -> None:
+    """Loads environment variables from local .env files if present."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    possible_paths = [
+        os.path.join(base_dir, ".env"),
+        os.path.join(base_dir, "..", ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
+    for p in possible_paths:
+        if os.path.isfile(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            k, v = k.strip(), v.strip().strip("'\"")
+                            if k and k not in os.environ:
+                                os.environ[k] = v
+                logger.info(f"Loaded environment variables from {p}")
+                break
+            except Exception as e:
+                logger.debug(f"Failed to read {p}: {e}")
+
+load_env_file()
+
+
+def clean_json_response(raw_text: str) -> str:
+    """Strips markdown code fences (```json ... ```) from LLM text output."""
+    text = raw_text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
 
 # --- Structured Pydantic Schemas ---
 
@@ -102,6 +145,9 @@ class LLMService:
         self.client_type = self._detect_client()
 
     def _detect_client(self) -> str:
+        # Refresh from environment in case variables were set dynamically
+        self.openai_key = os.getenv("OPENAI_API_KEY")
+        self.gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if self.gemini_key:
             logger.info("LLM Service initialized with Google Gemini.")
             return "gemini"
@@ -126,14 +172,15 @@ class LLMService:
         """
         Generates a comprehensive pedagogical learning roadmap targeting missing and partial skills.
         """
-        if self.client_type == "openai" and self.openai_key:
+        client = self._detect_client()
+        if client == "openai" and self.openai_key:
             try:
                 return await self._call_openai_roadmap(
                     target_role, missing_skills, partial_skills, matched_skills, target_timeline_weeks
                 )
             except Exception as e:
                 logger.error(f"OpenAI roadmap generation failed: {e}. Falling back to default generator.")
-        elif self.client_type == "gemini" and self.gemini_key:
+        elif client == "gemini" and self.gemini_key:
             try:
                 return await self._call_gemini_roadmap(
                     target_role, missing_skills, partial_skills, matched_skills, target_timeline_weeks
@@ -183,7 +230,8 @@ class LLMService:
         )
 
         raw_json = completion.choices[0].message.content or "{}"
-        data = json.loads(raw_json)
+        cleaned_json = clean_json_response(raw_json)
+        data = json.loads(cleaned_json)
         return TeachingCurriculum.model_validate(data)
 
     async def _call_gemini_roadmap(
@@ -214,11 +262,12 @@ class LLMService:
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"response_mime_type": "application/json", "temperature": 0.2}
         }
-        res = requests.post(url, json=payload, timeout=30)
+        res = await asyncio.to_thread(requests.post, url, json=payload, timeout=35)
         res.raise_for_status()
         res_data = res.json()
-        text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-        return TeachingCurriculum.model_validate_json(text)
+        raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+        cleaned_json = clean_json_response(raw_text)
+        return TeachingCurriculum.model_validate_json(cleaned_json)
 
     def _generate_mock_roadmap(
         self,
@@ -335,8 +384,95 @@ class LLMService:
     ) -> TailoredResumeResponse:
         """
         Generates truthful, impact-driven bullet points that highlight candidate transferable skills.
+        Uses OpenAI or Gemini when API keys are available; falls back to offline generator.
         """
-        # Formulate recommendations based on partials
+        client = self._detect_client()
+        if client == "openai" and self.openai_key:
+            try:
+                return await self._call_openai_tailored(
+                    sanitized_resume_text, target_role, partial_skills, matched_skills
+                )
+            except Exception as e:
+                logger.error(f"OpenAI resume tailoring failed: {e}. Falling back to default generator.")
+        elif client == "gemini" and self.gemini_key:
+            try:
+                return await self._call_gemini_tailored(
+                    sanitized_resume_text, target_role, partial_skills, matched_skills
+                )
+            except Exception as e:
+                logger.error(f"Gemini resume tailoring failed: {e}. Falling back to default generator.")
+
+        return self._generate_mock_tailored_bullets(
+            sanitized_resume_text, target_role, partial_skills, matched_skills
+        )
+
+    async def _call_openai_tailored(
+        self,
+        sanitized_resume: str,
+        target_role: str,
+        partial_skills: List[Dict[str, Any]],
+        matched_skills: List[str]
+    ) -> TailoredResumeResponse:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=self.openai_key)
+        system_prompt = (
+            "You are an expert technical resume strategist. "
+            "Generate truthful, quantifiable, impact-driven bullet points that spotlight candidate transferable skills. "
+            "Output must be strictly valid JSON matching the TailoredResumeResponse schema."
+        )
+        user_content = {
+            "target_role": target_role,
+            "partial_skills": partial_skills,
+            "matched_skills": matched_skills,
+            "sanitized_resume_snippet": sanitized_resume[:2500]
+        }
+        completion = await client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_content)}
+            ],
+            temperature=0.3
+        )
+        raw_json = completion.choices[0].message.content or "{}"
+        cleaned = clean_json_response(raw_json)
+        return TailoredResumeResponse.model_validate(json.loads(cleaned))
+
+    async def _call_gemini_tailored(
+        self,
+        sanitized_resume: str,
+        target_role: str,
+        partial_skills: List[Dict[str, Any]],
+        matched_skills: List[str]
+    ) -> TailoredResumeResponse:
+        import requests
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_key}"
+        prompt = f"""
+        You are an expert technical resume strategist. Return ONLY valid JSON matching this schema:
+        {json.dumps(TailoredResumeResponse.model_json_schema())}
+
+        Target Role: {target_role}
+        Transferable/Partial Skills: {partial_skills}
+        Matched Skills: {matched_skills}
+        Sanitized Resume: {sanitized_resume[:2500]}
+        """
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"response_mime_type": "application/json", "temperature": 0.3}
+        }
+        res = await asyncio.to_thread(requests.post, url, json=payload, timeout=35)
+        res.raise_for_status()
+        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return TailoredResumeResponse.model_validate_json(clean_json_response(text))
+
+    def _generate_mock_tailored_bullets(
+        self,
+        sanitized_resume_text: str,
+        target_role: str,
+        partial_skills: List[Dict[str, Any]],
+        matched_skills: List[str]
+    ) -> TailoredResumeResponse:
         bullets: List[TailoredBulletPoint] = []
         for p in partial_skills[:3]:
             skill_name = p.get("name") if isinstance(p, dict) else str(p)
@@ -377,16 +513,93 @@ class LLMService:
     ) -> TutorReply:
         """
         Socratic AI Tutor conversational responder with diagnostic questions and mini-quizzes.
+        Uses OpenAI or Gemini when API keys are configured; falls back to offline generator.
         """
-        explanation = (
-            f"When considering **{skill}**, the fundamental trade-off lies between consistency, availability, "
-            f"and simplicity. In response to your question: '{user_message}', you should evaluate how the system "
-            f"recovers gracefully from transient faults and isolates failure domains."
+        client = self._detect_client()
+        if client == "openai" and self.openai_key:
+            try:
+                return await self._call_openai_tutor(skill, user_message, context)
+            except Exception as e:
+                logger.error(f"OpenAI tutor chat failed: {e}. Falling back to default generator.")
+        elif client == "gemini" and self.gemini_key:
+            try:
+                return await self._call_gemini_tutor(skill, user_message, context)
+            except Exception as e:
+                logger.error(f"Gemini tutor chat failed: {e}. Falling back to default generator.")
+
+        return self._generate_mock_tutor_reply(skill, user_message, context)
+
+    async def _call_openai_tutor(
+        self,
+        skill: str,
+        user_message: str,
+        context: Optional[str] = None
+    ) -> TutorReply:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=self.openai_key)
+        system_prompt = (
+            f"You are Astria's Socratic Senior Staff Engineer AI Tutor mentoring on {skill}. "
+            "Provide insightful architectural explanations, concrete production trade-offs, "
+            "a high-yield interview tip, and an interactive 4-option mini-quiz with 0-indexed correct option. "
+            "Output must be strictly valid JSON matching the TutorReply schema."
         )
-        tip = f"Pro Tip for {skill} interviews: Always articulate how you monitor error budgets and handle connection pooling."
+        user_content = {
+            "skill": skill,
+            "user_question": user_message,
+            "curriculum_context": context or ""
+        }
+        completion = await client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_content)}
+            ],
+            temperature=0.3
+        )
+        raw_json = completion.choices[0].message.content or "{}"
+        cleaned = clean_json_response(raw_json)
+        return TutorReply.model_validate(json.loads(cleaned))
+
+    async def _call_gemini_tutor(
+        self,
+        skill: str,
+        user_message: str,
+        context: Optional[str] = None
+    ) -> TutorReply:
+        import requests
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_key}"
+        prompt = f"""
+        You are Astria's Socratic AI Technical Tutor specializing in {skill}. Return ONLY valid JSON matching this schema:
+        {json.dumps(TutorReply.model_json_schema())}
+
+        User Question: {user_message}
+        Context: {context or 'Interview preparation'}
+        """
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"response_mime_type": "application/json", "temperature": 0.3}
+        }
+        res = await asyncio.to_thread(requests.post, url, json=payload, timeout=35)
+        res.raise_for_status()
+        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return TutorReply.model_validate_json(clean_json_response(text))
+
+    def _generate_mock_tutor_reply(
+        self,
+        skill: str,
+        user_message: str,
+        context: Optional[str] = None
+    ) -> TutorReply:
+        explanation = (
+            f"When mastering **{skill}**, the primary architectural trade-off centers on latency, "
+            f"fault-tolerance, and state synchronization. In addressing: '{user_message}', "
+            f"evaluate how downstream dependencies isolate degradation and fail safely."
+        )
+        tip = f"Pro Tip for {skill} interviews: Articulate concrete observability strategies (metrics, traces, error budgets) rather than just API definitions."
 
         quiz = TutorQuiz(
-            question=f"Which design pattern best addresses distributed failure in {skill} integrations?",
+            question=f"Which architectural strategy best mitigates cascading failure when integrating with {skill}?",
             options=[
                 "Circuit Breaker with Exponential Backoff",
                 "Unbounded In-Memory Retry Queue",
@@ -394,7 +607,7 @@ class LLMService:
                 "Disabling Connection Timeouts"
             ],
             correct_option_index=0,
-            explanation="The Circuit Breaker pattern prevents cascading failures across distributed microservices by failing fast when downstream dependencies degrade."
+            explanation="The Circuit Breaker pattern isolates degraded dependencies by immediately returning fallback responses, preventing resource pool exhaustion."
         )
 
         return TutorReply(

@@ -55,7 +55,7 @@ app.add_middleware(
 # --- Helper Utilities ---
 
 def extract_text_from_upload(content: bytes, filename: str) -> str:
-    """Extracts raw text from uploaded PDF or plain text files."""
+    """Extracts raw text from uploaded PDF, DOCX, or plain text files."""
     name_lower = filename.lower()
     if name_lower.endswith(".pdf"):
         try:
@@ -68,6 +68,26 @@ def extract_text_from_upload(content: bytes, filename: str) -> str:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Unable to extract text from PDF '{filename}': {str(e)}"
+            )
+    elif name_lower.endswith(".docx"):
+        try:
+            import zipfile
+            import xml.etree.ElementTree as ET
+            with zipfile.ZipFile(io.BytesIO(content)) as docx_zip:
+                xml_content = docx_zip.read("word/document.xml")
+                tree = ET.fromstring(xml_content)
+                ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+                paragraphs = []
+                for p in tree.findall(".//w:p", ns):
+                    texts = [node.text for node in p.findall(".//w:t", ns) if node.text]
+                    if texts:
+                        paragraphs.append("".join(texts))
+                return "\n".join(paragraphs)
+        except Exception as e:
+            logger.error(f"Failed to parse DOCX: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unable to extract text from DOCX '{filename}': {str(e)}"
             )
     else:
         # Fallback to UTF-8 decoding with replacement

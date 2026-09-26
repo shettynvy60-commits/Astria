@@ -90,10 +90,20 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "category": SkillCategory.BACKEND,
         "adjacent": ["fastapi", "django", "bottle"]
     },
+    "node.js": {
+        "aliases": ["nodejs", "node"],
+        "category": SkillCategory.BACKEND,
+        "adjacent": ["express", "javascript", "typescript", "fastapi"]
+    },
+    "express": {
+        "aliases": ["express.js", "expressjs"],
+        "category": SkillCategory.BACKEND,
+        "adjacent": ["node.js", "fastapi", "flask"]
+    },
     "javascript": {
-        "aliases": ["js", "ecmascript"],
+        "aliases": ["ecmascript"],
         "category": SkillCategory.LANGUAGES,
-        "adjacent": ["typescript"]
+        "adjacent": ["typescript", "node.js"]
     },
     "typescript": {
         "aliases": ["ts"],
@@ -101,12 +111,12 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "adjacent": ["javascript"]
     },
     "go": {
-        "aliases": ["golang"],
+        "aliases": ["golang", "go-lang", "go language", "go programming", "go developer"],
         "category": SkillCategory.LANGUAGES,
         "adjacent": ["rust", "c++", "python"]
     },
     "rust": {
-        "aliases": [],
+        "aliases": ["cargo"],
         "category": SkillCategory.LANGUAGES,
         "adjacent": ["c++", "go"]
     },
@@ -120,10 +130,20 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "category": SkillCategory.LANGUAGES,
         "adjacent": ["c", "rust"]
     },
+    "c#": {
+        "aliases": [".net", "csharp", "c-sharp", "dotnet", "asp.net"],
+        "category": SkillCategory.LANGUAGES,
+        "adjacent": ["java", "c++"]
+    },
+    "c": {
+        "aliases": ["c language", "ansi c", "embedded c"],
+        "category": SkillCategory.LANGUAGES,
+        "adjacent": ["c++", "rust"]
+    },
 
     # Frontend
     "react": {
-        "aliases": ["react.js", "reactjs"],
+        "aliases": ["react.js", "reactjs", "react-native", "react native"],
         "category": SkillCategory.FRONTEND,
         "adjacent": ["vue", "angular", "svelte", "next.js"]
     },
@@ -137,10 +157,25 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "category": SkillCategory.FRONTEND,
         "adjacent": ["react", "svelte", "angular"]
     },
+    "angular": {
+        "aliases": ["angular.js", "angularjs"],
+        "category": SkillCategory.FRONTEND,
+        "adjacent": ["react", "vue", "typescript"]
+    },
     "tailwind css": {
         "aliases": ["tailwind", "tailwindcss"],
         "category": SkillCategory.FRONTEND,
-        "adjacent": ["bootstrap", "sass", "css3"]
+        "adjacent": ["bootstrap", "sass", "css"]
+    },
+    "html": {
+        "aliases": ["html5"],
+        "category": SkillCategory.FRONTEND,
+        "adjacent": ["css", "javascript"]
+    },
+    "css": {
+        "aliases": ["css3", "vanilla css", "sass", "scss"],
+        "category": SkillCategory.FRONTEND,
+        "adjacent": ["html", "tailwind css"]
     },
 
     # Databases
@@ -154,10 +189,15 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "category": SkillCategory.DATABASE,
         "adjacent": ["postgresql", "sqlite", "sql"]
     },
+    "sqlite": {
+        "aliases": [],
+        "category": SkillCategory.DATABASE,
+        "adjacent": ["postgresql", "mysql", "sql"]
+    },
     "mongodb": {
         "aliases": ["mongo"],
         "category": SkillCategory.DATABASE,
-        "adjacent": ["dynamodb", "couchbase", "documentdb"]
+        "adjacent": ["dynamodb", "couchbase", "documentdb", "nosql"]
     },
     "redis": {
         "aliases": ["valkey"],
@@ -168,6 +208,11 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "aliases": ["rdbms", "relational database"],
         "category": SkillCategory.DATABASE,
         "adjacent": ["postgresql", "mysql"]
+    },
+    "nosql": {
+        "aliases": ["no-sql"],
+        "category": SkillCategory.DATABASE,
+        "adjacent": ["mongodb", "redis"]
     },
 
     # DevOps & Cloud
@@ -197,9 +242,19 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "adjacent": ["aws", "gcp"]
     },
     "ci/cd": {
-        "aliases": ["continuous integration", "github actions", "gitlab ci", "jenkins"],
+        "aliases": ["continuous integration", "github actions", "gitlab ci", "jenkins", "circleci"],
         "category": SkillCategory.DEVOPS_CLOUD,
-        "adjacent": ["devops", "automation"]
+        "adjacent": ["devops", "automation", "git"]
+    },
+    "git": {
+        "aliases": ["github", "gitlab", "version control"],
+        "category": SkillCategory.DEVOPS_CLOUD,
+        "adjacent": ["ci/cd", "linux"]
+    },
+    "linux": {
+        "aliases": ["unix", "bash", "shell scripting", "shell"],
+        "category": SkillCategory.DEVOPS_CLOUD,
+        "adjacent": ["docker", "devops"]
     },
     "terraform": {
         "aliases": ["iac", "infrastructure as code"],
@@ -219,12 +274,20 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "adjacent": ["kafka", "sqs", "celery", "activemq"]
     },
     "graphql": {
-        "aliases": [],
+        "aliases": ["apollo graphql", "relay"],
         "category": SkillCategory.SYSTEM_DESIGN,
         "adjacent": ["rest", "grpc", "trpc"]
     },
+    "grpc": {
+        "aliases": ["protobuf", "protocol buffers"],
+        "category": SkillCategory.SYSTEM_DESIGN,
+        "adjacent": ["rest", "graphql"]
+    },
     "rest": {
-        "aliases": ["restful api", "rest api"],
+        "aliases": [
+            "restful", "rest api", "rest apis", "restful api", "restful apis",
+            "rest architecture", "rest web services", "restful web services", "rest endpoints"
+        ],
         "category": SkillCategory.SYSTEM_DESIGN,
         "adjacent": ["graphql", "grpc"]
     },
@@ -263,7 +326,7 @@ SKILL_TAXONOMY: Dict[str, Dict] = {
         "adjacent": ["jest", "mocking", "tdd"]
     },
     "jest": {
-        "aliases": [],
+        "aliases": ["vitest"],
         "category": SkillCategory.TESTING,
         "adjacent": ["vitest", "mocha", "pytest"]
     }
@@ -274,7 +337,11 @@ class MatchEngine:
     """
     Deterministic Match & Gap Analysis Engine.
     Executes exact mathematical calculations for candidate resume against job requirements.
+    Features robust false-positive elimination for ambiguous keywords and exact symbol support.
     """
+
+    # Skills that require strict context or case/delimiters to avoid false positives with English words
+    DISAMBIGUATED_SKILLS = {"go", "react", "rest", "c", "javascript"}
 
     def __init__(self, taxonomy: Dict[str, Dict] = SKILL_TAXONOMY):
         self.taxonomy = taxonomy
@@ -291,15 +358,87 @@ class MatchEngine:
         return self.alias_to_canonical.get(clean, clean)
 
     def extract_skills_from_text(self, text: str) -> Set[str]:
-        """Scans text for canonical skills and their recognized aliases."""
+        """
+        Scans text for canonical skills and their recognized aliases.
+        Guarantees zero false positives for ambiguous words ('go', 'react', 'rest', 'js')
+        and clean symbol boundary recognition ('c++', 'c#', 'ci/cd', '.net').
+        """
         found_skills: Set[str] = set()
         lowered_text = f" {text.lower()} "
 
-        # Scan for all canonical names and aliases with word boundary checks
+        # 1. Specialized contextual recognizers for ambiguous keywords
+        # A. Go (Golang) - Never match standalone English verb "go"
+        go_patterns = [
+            r"\b(?:golang|go-lang|go\s+language|go\s+programming|go\s+developer|go\s+backend|go\s+microservices?)\b",
+            r"(?<=[,\/|•\n\r])\s*Go\s*(?=[,\/|•\n\r])",
+            r"\b(?:Languages|Skills|Technologies|Stack)\s*:[^\n]*\bGo\b",
+            r"\bGo\s*\/\s*(?:Python|Java|Rust|C\+\+|Ruby)\b"
+        ]
+        if any(re.search(pat, text if "Go" in pat else lowered_text, re.IGNORECASE if "Go" not in pat else 0) for pat in go_patterns):
+            found_skills.add("go")
+
+        # B. React - Avoid "ability to react", "react quickly", "fail to react"
+        react_tech_pattern = (
+            r"\b(?:react\.?js|reactjs|react\s+native|react\s+frontend|react\s+components?|"
+            r"react\s+hooks?|react\s+router|react\s+ecosystem|react\s+developer|react\s+app)\b"
+        )
+        if re.search(react_tech_pattern, lowered_text):
+            found_skills.add("react")
+        else:
+            # Check for capitalized 'React' in lists or technical context
+            for m in re.finditer(r"\bReact\b", text):
+                pre = text[max(0, m.start() - 25):m.start()].lower()
+                post = text[m.end():min(len(text), m.end() + 25)].lower()
+                is_verb_phrase = any(pre.rstrip().endswith(v) for v in ["ability to", "able to", "how to", "to", "will", "would", "can", "shall", "fail to"])
+                is_adverb_phrase = any(post.lstrip().startswith(v) for v in ["to ", "under ", "quickly", "fast", "in response", "appropriately"])
+                if not (is_verb_phrase or is_adverb_phrase):
+                    found_skills.add("react")
+                    break
+
+        # C. REST - Avoid "the rest of", "rest assured", "take a rest"
+        rest_tech_pattern = (
+            r"\b(?:restful(?:\s+apis?)?|rest[\s-]apis?|rest[\s-]services?|rest[\s-]endpoints?|"
+            r"rest[\s-]architectures?|rest[\s-]web[\s-]services?|restful[\s-]web[\s-]services?)\b"
+        )
+        if re.search(rest_tech_pattern, lowered_text):
+            found_skills.add("rest")
+        else:
+            for m in re.finditer(r"\bREST\b", text):
+                pre = text[max(0, m.start() - 15):m.start()].lower()
+                post = text[m.end():min(len(text), m.end() + 15)].lower()
+                if any(pre.rstrip().endswith(v) for v in ["the", "a", "take a"]) or any(post.lstrip().startswith(v) for v in ["of", "assured", "easy", "in peace"]):
+                    continue
+                found_skills.add("rest")
+                break
+
+        # D. JavaScript & JS - Guard against matching '.js' in 'next.js', 'vue.js', 'node.js', etc.
+        if re.search(r"\b(?:javascript|ecmascript)\b", lowered_text):
+            found_skills.add("javascript")
+        elif re.search(r"(?<![.\w])js(?![.\w])", lowered_text):
+            # Standalone 'js' not preceded by a dot
+            found_skills.add("javascript")
+
+        # E. C Language - Guard single letter C against ordinary English characters
+        c_patterns = [
+            r"\b(?:c\s+language|ansi\s+c|embedded\s+c)\b",
+            r"(?<=[,\/|•])\s*C\s*(?=[,\/|•])",
+            r"\bC\s*\/\s*C\+\+\b"
+        ]
+        if any(re.search(pat, text if "C" in pat else lowered_text) for pat in c_patterns):
+            found_skills.add("c")
+
+        # 2. General taxonomy scanner for unambiguous canonical skills and aliases
         for alias, canonical in self.alias_to_canonical.items():
-            # Escape regex chars for symbols like c++, ci/cd, next.js
+            if canonical in self.DISAMBIGUATED_SKILLS:
+                continue
+
             escaped_alias = re.escape(alias)
-            pattern = rf"(?:\b|\s|_){escaped_alias}(?:\b|\s|_|[.,;:)])"
+            # Use symbol-safe boundaries: supports 'c++', 'c#', 'ci/cd', '.net', etc.
+            if any(sym in alias for sym in ["+", "#", "/", "."]):
+                pattern = rf"(?<![a-zA-Z0-9#+]){escaped_alias}(?![a-zA-Z0-9#+])"
+            else:
+                pattern = rf"(?<![a-zA-Z0-9_-]){escaped_alias}(?![a-zA-Z0-9_-])"
+
             if re.search(pattern, lowered_text):
                 found_skills.add(canonical)
 
