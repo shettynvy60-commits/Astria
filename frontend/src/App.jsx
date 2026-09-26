@@ -8,6 +8,7 @@ import SkillBadges from './components/SkillBadges';
 import RoadmapView from './components/RoadmapView';
 import TailoredResume from './components/TailoredResume';
 import AITutorSandbox from './components/AITutorSandbox';
+import AIResumeAssistant from './components/AIResumeAssistant';
 import { 
   ShieldCheck, 
   Eye, 
@@ -847,6 +848,14 @@ export default function App() {
               targetRole={targetRole}
             />
           </div>
+        )}
+
+        {activeView === 'ai-tools' && (
+          <AIResumeAssistant
+            targetRole={targetRole}
+            resumeText={resumeText}
+            jobDescription={jobDescription}
+          />
         )}
       </main>
 
