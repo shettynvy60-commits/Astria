@@ -50,3 +50,6 @@ dist-ssr/
 # Logs
 logs/
 *.log
+
+# Frozen Localhost Backup
+stable_localhost_copy/
