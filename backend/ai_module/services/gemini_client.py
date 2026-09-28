@@ -1,17 +1,20 @@
 import json
 import logging
 import re
-from typing import Optional, Dict, Any
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
 from ai_module.config import settings
 
 logger = logging.getLogger("gemini_client")
 
 class GeminiClient:
     def __init__(self):
-        self._client: Optional[genai.Client] = None
-        if settings.is_gemini_configured:
+        self._client: Optional[Any] = None
+        if settings.is_gemini_configured and genai is not None:
             try:
                 self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
                 logger.info("Gemini Client successfully initialized with provided API key.")
@@ -19,7 +22,7 @@ class GeminiClient:
                 logger.warning(f"Failed to initialize Gemini Client: {e}")
                 self._client = None
         else:
-            logger.info("No valid GEMINI_API_KEY configured. Running in Mock/Offline mode.")
+            logger.info("No valid GEMINI_API_KEY configured or genai library unavailable. Running in Mock/Offline mode.")
 
     @property
     def is_available(self) -> bool:
