@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install recharts peer dependencies
+        run: npm install react-is --save
+
       - name: Build for GitHub Pages
         run: npm run build
         env:
