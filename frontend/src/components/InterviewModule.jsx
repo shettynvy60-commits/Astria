@@ -1,38 +1,74 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  RotateCcw, CheckCircle2, Send, Sparkles, ArrowLeft, ChevronRight, MessageSquare
+  RotateCcw, CheckCircle2, Send, Sparkles, ArrowLeft, ChevronRight, MessageSquare, Terminal
 } from 'lucide-react';
+import { useUser } from '../context/UserContext';
 
-const INTERVIEW_QUESTIONS = [
-  {
-    id: 1,
-    question: "Can you explain how you would design an asynchronous task processing pipeline in Python, and how you prevent task loss during unexpected server crashes?",
-    topic: "Architecture & Backend",
-    targetKeywords: ["message queue", "redis", "celery", "rabbitmq", "acknowledgement", "idempotent", "worker", "persistence", "dead letter"]
-  },
-  {
-    id: 2,
-    question: "How do you approach securing sensitive candidate data (PII) before passing unstructured resumes to external LLM providers or third-party APIs?",
-    topic: "Security & Zero-Trust",
-    targetKeywords: ["presidio", "redaction", "tokenization", "anonymization", "local vault", "regex", "hash", "zero-trust", "sanitization"]
-  },
-  {
-    id: 3,
-    question: "Describe your strategy for diagnosing and optimizing a slow database query in a relational schema like PostgreSQL or MySQL.",
-    topic: "Databases & Performance",
-    targetKeywords: ["explain analyze", "index", "b-tree", "n+1", "connection pool", "slow query log", "select fields", "composite index"]
-  }
-];
+// Skill-specific question banks
+const QUESTION_BANKS = {
+  python: [
+    { id: 1, question: "Can you explain how you would design an asynchronous task processing pipeline in Python, and how you prevent task loss during unexpected server crashes?", topic: "Python & Backend Architecture", targetKeywords: ["message queue", "redis", "celery", "rabbitmq", "acknowledgement", "idempotent", "worker", "persistence", "dead letter"] },
+    { id: 2, question: "Explain Python's GIL — when is it a bottleneck, and how do you work around it for CPU-bound vs I/O-bound workloads?", topic: "Python Concurrency", targetKeywords: ["gil", "multiprocessing", "asyncio", "threading", "cpu-bound", "i/o-bound", "event loop", "coroutine"] },
+  ],
+  java: [
+    { id: 1, question: "Describe how you design thread-safe services in Java 17+ using virtual threads, and how you'd prevent deadlocks in a concurrent banking transaction system.", topic: "Java & Backend Architecture", targetKeywords: ["virtual threads", "synchronized", "reentrantlock", "deadlock", "executorservice", "completablefuture", "atomic", "monitor"] },
+    { id: 2, question: "Explain Spring Boot's dependency injection container — how does @Transactional propagation work, and what pitfalls exist with self-invocation?", topic: "Java & Spring Boot", targetKeywords: ["dependency injection", "ioc", "transactional", "propagation", "proxy", "aop", "self-invocation", "bean scope"] },
+  ],
+  javascript: [
+    { id: 1, question: "Explain the JavaScript event loop, microtask queue, and macrotask queue — how do Promises and setTimeout interact in the execution order?", topic: "JavaScript & Runtime", targetKeywords: ["event loop", "microtask", "macrotask", "call stack", "promise", "settimeout", "async/await", "then", "callback"] },
+    { id: 2, question: "Describe how you would architect a real-time collaborative editing feature using WebSockets, handling conflict resolution across concurrent users.", topic: "JavaScript & Real-Time", targetKeywords: ["websocket", "operational transform", "crdt", "conflict", "broadcast", "socket.io", "reconnect", "heartbeat"] },
+  ],
+  typescript: [
+    { id: 1, question: "How do you model complex discriminated union types in TypeScript to ensure exhaustive type checking across all cases without runtime errors?", topic: "TypeScript & Type Safety", targetKeywords: ["discriminated union", "exhaustive", "never", "typeof", "instanceof", "type guard", "conditional type", "infer"] },
+    { id: 2, question: "Describe how you share type definitions between a FastAPI backend and a React TypeScript frontend, and how you automate schema generation.", topic: "TypeScript & Full-Stack", targetKeywords: ["openapi", "zod", "schema", "type generation", "shared types", "pydantic", "codegen", "strict"] },
+  ],
+  react: [
+    { id: 1, question: "Explain how React's reconciliation algorithm works, and when would you use useMemo, useCallback, and React.memo to prevent unnecessary re-renders?", topic: "React & Performance", targetKeywords: ["reconciliation", "virtual dom", "fiber", "usememo", "usecallback", "react.memo", "re-render", "key prop"] },
+    { id: 2, question: "Design a scalable global state architecture for a large React app — compare Context API, Zustand, Redux Toolkit, and Jotai for your use case.", topic: "React & State Management", targetKeywords: ["context", "zustand", "redux", "jotai", "recoil", "atom", "selector", "slice", "immutable"] },
+  ],
+  sql: [
+    { id: 1, question: "Explain the difference between clustered and non-clustered indexes in PostgreSQL, and describe when a composite index is preferable to multiple single indexes.", topic: "SQL & Database Performance", targetKeywords: ["clustered", "btree", "composite", "covering index", "explain analyze", "sequential scan", "index scan", "vacuum"] },
+    { id: 2, question: "Describe your approach to designing a sharding strategy for a high-traffic multi-tenant SaaS database — what are the trade-offs between row-level tenancy vs schema-per-tenant?", topic: "SQL & Scalability", targetKeywords: ["sharding", "tenant", "partition", "row-level", "schema", "connection pooling", "pgbouncer", "replication"] },
+  ],
+  security: [
+    { id: 1, question: "How do you approach securing sensitive candidate data (PII) before passing unstructured resumes to external LLM providers or third-party APIs?", topic: "Security & Zero-Trust", targetKeywords: ["presidio", "redaction", "tokenization", "anonymization", "local vault", "regex", "hash", "zero-trust", "sanitization"] },
+    { id: 2, question: "Explain the OAuth 2.0 PKCE flow and how it prevents authorization code interception attacks in single-page apps.", topic: "Security & Auth", targetKeywords: ["pkce", "code verifier", "code challenge", "authorization code", "access token", "refresh token", "cors", "csrf"] },
+  ],
+  default: [
+    { id: 1, question: "Describe how you would design a highly available distributed system that handles 1M+ requests per day, including your strategy for failure detection and recovery.", topic: "System Design & Architecture", targetKeywords: ["load balancer", "replication", "failover", "circuit breaker", "health check", "caching", "cdn", "sharding"] },
+    { id: 2, question: "How do you approach diagnosing a p99 latency regression that appears only under production load — describe your instrumentation, tracing, and resolution strategy.", topic: "Performance & Observability", targetKeywords: ["tracing", "opentelemetry", "profiler", "flame graph", "slow query", "connection pool", "bottleneck", "metrics"] },
+    { id: 3, question: "Explain the CAP theorem and how it applies to your choice between a strongly consistent SQL database vs an eventually consistent NoSQL store for a specific real-world use case.", topic: "Databases & Trade-offs", targetKeywords: ["cap theorem", "consistency", "availability", "partition tolerance", "eventual consistency", "acid", "nosql", "dynamo"] },
+  ],
+};
+
+function detectSkillCategory(resumeText = '', targetRole = '') {
+  const combined = (resumeText + ' ' + targetRole).toLowerCase();
+  if (/\bjava\b/.test(combined) && !/javascript/.test(combined)) return 'java';
+  if (/\btypescript\b/.test(combined)) return 'typescript';
+  if (/\bjavascript\b|\bnode\.js\b|\bnext\.js\b/.test(combined)) return 'javascript';
+  if (/\breact\b/.test(combined)) return 'react';
+  if (/\bsql\b|\bpostgresql\b|\bmysql\b|\bpostgres\b/.test(combined)) return 'sql';
+  if (/\bpython\b/.test(combined)) return 'python';
+  if (/\bsecurity\b|\bzero.trust\b|\bpii\b/.test(combined)) return 'security';
+  return 'default';
+}
 
 const FILLER_WORD_REGEX = /\b(um|uh|like|you know|basically|actually)\b/gi;
 
-export default function InterviewModule({ targetRole = 'Software Engineer', onBackToDashboard, onUpdateMetrics }) {
+export default function InterviewModule({ targetRole = 'Software Engineer', onBackToDashboard, onUpdateMetrics, rawResumeText = '' }) {
+  const { user } = useUser();
+
+  const skillCategory = useMemo(() => detectSkillCategory(rawResumeText, targetRole), [rawResumeText, targetRole]);
+  const questions = QUESTION_BANKS[skillCategory] || QUESTION_BANKS.default;
+  const topicLabel = questions[0]?.topic?.split('&')[0]?.trim()?.toUpperCase() || 'SYSTEM DESIGN';
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [candidateAnswer, setCandidateAnswer] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
-  const question = INTERVIEW_QUESTIONS[currentQuestionIndex];
+  const question = questions[currentQuestionIndex % questions.length];
 
+  const displayName = user.fullName || (user.isGuest ? 'Candidate' : 'Candidate');
 
   const handleEvaluate = () => {
     if (!candidateAnswer.trim()) return;
@@ -42,38 +78,38 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
       const fillerCount = fillerMatches.length;
       const words = candidateAnswer.trim().split(/\s+/).filter(Boolean);
       const totalWords = words.length || 1;
-      const minutesEstimated = Math.max(0.5, totalWords / 130);
-      const fillerRate = Number((fillerCount / minutesEstimated).toFixed(1));
-      const fillerCounts = { um: 0, uh: 0, like: 0, 'you know': 0, basically: 0, actually: 0 };
-      fillerMatches.forEach(m => { const l = m.toLowerCase(); if (fillerCounts[l] !== undefined) fillerCounts[l]++; });
       const lowerAnswer = candidateAnswer.toLowerCase();
       const matchedKeywordsCount = question.targetKeywords.filter(kw => lowerAnswer.includes(kw.toLowerCase())).length;
       const keywordRatio = matchedKeywordsCount / question.targetKeywords.length;
-      let rawScore = Math.min(100, Math.round(keywordRatio * 70 + (totalWords > 25 ? 25 : totalWords) - Math.min(15, fillerCount * 2)));
+      const rawScore = Math.min(100, Math.round(keywordRatio * 70 + (totalWords > 25 ? 25 : totalWords) - Math.min(15, fillerCount * 2)));
       const accuracyScore = Math.max(45, Math.min(98, rawScore));
       const result = {
-        accuracyScore, fillerCount, fillerRate, fillerMatches, fillerCounts,
+        accuracyScore,
+        fillerCount,
+        fillerMatches,
         detectedKeywords: question.targetKeywords.filter(kw => lowerAnswer.includes(kw.toLowerCase())),
-        rephrasing: `In a production environment, I would decouple ingress by queueing tasks in Redis/RabbitMQ with at-least-once delivery guarantees and worker-level message acknowledgement. To safeguard state across crashes, tasks are persisted with idempotency keys and retry dead-letter queues.`,
         constructiveFeedback: accuracyScore >= 75
-          ? "Strong technical depth. You covered essential architectural primitives. Minimizing filler transitions will make your response sound authoritative."
-          : "Good baseline intuition. To reach Senior benchmark levels, explicitly articulate persistence guarantees, worker heartbeats, and idempotency mechanisms."
+          ? `Strong technical depth. You covered ${matchedKeywordsCount} of ${question.targetKeywords.length} key concepts. Focus on quantifiable outcomes to reach a Senior benchmark score.`
+          : `Good baseline. To reach Senior-level benchmarks, explicitly address: ${question.targetKeywords.slice(0, 3).join(', ')}. Depth and precision matter more than breadth.`,
       };
       setEvaluationResult(result);
       setIsEvaluating(false);
-      if (onUpdateMetrics) onUpdateMetrics({ fillerRate, fillerCounts, technicalAccuracy: accuracyScore });
+      if (onUpdateMetrics) {
+        const fillerCounts = { um: 0, uh: 0, like: 0, 'you know': 0, basically: 0, actually: 0 };
+        fillerMatches.forEach(m => { const l = m.toLowerCase(); if (fillerCounts[l] !== undefined) fillerCounts[l]++; });
+        onUpdateMetrics({ fillerRate: +(fillerCount / Math.max(0.5, totalWords / 130)).toFixed(1), fillerCounts, technicalAccuracy: accuracyScore });
+      }
     }, 800);
   };
 
   const handleNextQuestion = () => {
-    setCandidateAnswer(''); setEvaluationResult(null);
-    setCurrentQuestionIndex(prev => (prev + 1) % INTERVIEW_QUESTIONS.length);
+    setCandidateAnswer('');
+    setEvaluationResult(null);
+    setCurrentQuestionIndex(prev => (prev + 1) % questions.length);
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      handleEvaluate();
-    }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleEvaluate();
   };
 
   return (
@@ -88,17 +124,17 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">Astria Technical Interviewer</h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Simulating live technical screening for <strong className="text-slate-700 dark:text-slate-300 font-semibold">{targetRole}</strong>. Type your answer and submit for AI evaluation.
+            Technical screening for <strong className="text-slate-700 dark:text-slate-300">{displayName}</strong> — <strong className="text-slate-700 dark:text-slate-300">{targetRole}</strong>. Type your answer and submit for AI evaluation.
           </p>
         </div>
         <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg shrink-0">
-          Question {currentQuestionIndex + 1} of {INTERVIEW_QUESTIONS.length}
+          Question {(currentQuestionIndex % questions.length) + 1} of {questions.length}
         </div>
       </div>
 
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
-          <MessageSquare className="w-4 h-4 text-sky-600" />
+          <Terminal className="w-4 h-4 text-sky-600" />
           <span>Interviewer Prompt ({question.topic})</span>
         </div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 leading-snug">"{question.question}"</h2>
@@ -112,7 +148,7 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
             onChange={e => setCandidateAnswer(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your technical answer here..."
-            className="w-full h-40 p-4 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all resize-none astria-input"
+            className="w-full h-40 p-4 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all resize-none"
           />
         </div>
 
@@ -139,37 +175,32 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">Performance Evaluation & Feedback</h3>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Accuracy</div>
-                <div className="text-2xl font-black text-slate-900 dark:text-slate-50">{evaluationResult.accuracyScore}%</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Filler Rate</div>
-                <div className="text-2xl font-black text-amber-600 dark:text-amber-400">{evaluationResult.fillerRate} <span className="text-xs font-normal text-slate-500">wpm</span></div>
+            <div className="text-center">
+              <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Accuracy</div>
+              <div className={`text-3xl font-black ${evaluationResult.accuracyScore >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {evaluationResult.accuracyScore}%
               </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-amber-50/60 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-2">Detected Filler Words ({evaluationResult.fillerCount} instances)</h4>
-            {evaluationResult.fillerCount === 0
-              ? <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">🎯 Clean response! Zero filler words detected.</p>
-              : <div className="flex flex-wrap gap-2">{evaluationResult.fillerMatches.map((word, i) => (
-                  <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-mono font-semibold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-300">"{word}"</span>
-                ))}</div>}
-          </div>
+          {/* Detected keywords */}
+          {evaluationResult.detectedKeywords.length > 0 && (
+            <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-2">✓ Key Concepts Covered ({evaluationResult.detectedKeywords.length})</h4>
+              <div className="flex flex-wrap gap-2">
+                {evaluationResult.detectedKeywords.map((kw, i) => (
+                  <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-mono font-semibold bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-300">
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Constructive Technical Evaluation</h4>
               <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{evaluationResult.constructiveFeedback}</p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-600" /><span>Exemplary Clean Rephrasing</span>
-              </h4>
-              <p className="text-sm text-slate-800 dark:text-slate-200 italic leading-relaxed">"{evaluationResult.rephrasing}"</p>
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   TrendingUp, 
   Award, 
-  Mic, 
+  Terminal, 
   FileText, 
   ArrowRight, 
   CheckCircle2, 
@@ -28,7 +28,7 @@ import {
 } from 'recharts';
 
 export default function PerformanceDashboard({
-  candidateName = 'Alex Chen',
+  candidateName = '',
   targetRole = 'Senior Software Engineer',
   readinessScore = 78,
   previousScore = 64,
@@ -128,7 +128,7 @@ export default function PerformanceDashboard({
             onClick={onLaunchInterview}
             className="px-4 py-2.5 rounded-lg bg-zinc-900 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-white text-sm font-semibold transition-all shadow-sm flex items-center gap-2"
           >
-            <Mic className="w-4 h-4" />
+            <Terminal className="w-4 h-4" />
             <span>Practice Interview</span>
           </button>
         </div>
@@ -224,54 +224,53 @@ export default function PerformanceDashboard({
           </div>
         </section>
 
-        {/* Block 2 — AI Voice Interview & Filler Word Analytics */}
+        {/* Block 2 — Technical Interview Fluency (replaces Voice Filler Word panel) */}
         <section className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Activity className="w-5 h-5 text-amber-600" />
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">Voice Interview Fluency</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">Technical Interview Fluency</h2>
               </div>
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
                 {interviewMetrics.sessionsCount} Sessions
               </span>
             </div>
 
-            {/* Filler Word Meter */}
-            <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 mb-6">
-              <div className="text-xs font-semibold text-amber-900 dark:text-amber-300 uppercase tracking-wider mb-1">
-                Filler Word Usage Rate
+            {/* Technical Accuracy Score */}
+            <div className="p-4 rounded-xl bg-sky-50/70 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 mb-4">
+              <div className="text-xs font-semibold text-sky-900 dark:text-sky-300 uppercase tracking-wider mb-1">
+                Average Technical Accuracy
               </div>
-              <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
-                {interviewMetrics.fillerRate} words per minute
+              <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
+                {interviewMetrics.technicalAccuracy}%
               </div>
-              <div className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-                <span>↓ Down {interviewMetrics.fillerReductionPercent}% from initial baseline</span>
+              <div className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-1">
+                Based on {interviewMetrics.sessionsCount} completed interview session{interviewMetrics.sessionsCount !== 1 ? 's' : ''}
               </div>
             </div>
 
-            {/* Filler Word Breakdown */}
+            {/* Score trend */}
             <div className="mb-4">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                Detected Filler Words Breakdown
+                Session Accuracy Trend
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(interviewMetrics.fillerCounts).map(([word, count]) => (
-                  <div
-                    key={word}
-                    className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center"
-                  >
-                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">"{word}"</div>
-                    <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-0.5">{count}x</div>
+              <div className="flex items-end gap-2 h-12">
+                {interviewMetrics.trend.map((score, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 flex-1">
+                    <div
+                      className="w-full bg-sky-500 dark:bg-sky-400 rounded-t-md transition-all"
+                      style={{ height: `${(score / 100) * 48}px` }}
+                    />
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{score}%</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Fluency Improvement Trend */}
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-            <span>Average Technical Accuracy: <strong className="text-slate-900 dark:text-slate-100">{interviewMetrics.technicalAccuracy}%</strong></span>
+            <span>Code correctness & architecture depth score</span>
             <button
               type="button"
               onClick={onLaunchInterview}

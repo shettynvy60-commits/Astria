@@ -10,290 +10,129 @@ import TailoredResume from './components/TailoredResume';
 import RoadmapView from './components/RoadmapView';
 import AITutorSandbox from './components/AITutorSandbox';
 import ResumeBuilder from './components/ResumeBuilder';
+import LoginPage from './components/LoginPage';
+import { UserProvider, useUser } from './context/UserContext';
 
 const API_BASE = 'http://localhost:8000';
 
-const DEFAULT_RESUME = `ALEX CHEN
-Email: alex.chen@example.com | Phone: (555) 321-9876 | San Francisco, CA
-GitHub: https://github.com/alexchen | LinkedIn: https://linkedin.com/in/alexchen
+function AppInner() {
+  const { user, login, continueAsGuest } = useUser();
 
-SUMMARY:
-Software Engineer with 4 years of experience building asynchronous REST APIs and backend systems.
+  // Guard: show login if not authenticated
+  if (!user.isAuthenticated) {
+    return <LoginPage onLogin={login} onGuest={continueAsGuest} />;
+  }
 
-EXPERIENCE:
-Software Engineer | CloudScale Inc (2022 - Present)
-- Developed and maintained 12+ high-throughput microservices using FastAPI and Python.
-- Designed database migrations and indexed relational tables using MySQL.
-- Containerized development and deployment workflows using Docker.
-- Implemented in-memory caching solutions using Redis to reduce API latency by 40%.
+  return <AppCore />;
+}
 
-SKILLS:
-Languages: Python, JavaScript, SQL
-Frameworks: FastAPI, Flask, Django
-Databases: MySQL, SQLite, Redis
-DevOps: Docker, Git, CI/CD`;
+function AppCore() {
+  const { user } = useUser();
 
-export default function App() {
-  // Section 2: User Session Routing & Flow Controller
-  // hasCompletedAnalysis determines first-time vs returning flow
   const [hasCompletedAnalysis, setHasCompletedAnalysis] = useState(() => {
-    try {
-      return localStorage.getItem('astria_has_completed_analysis') === 'true';
-    } catch {
-      return false;
-    }
+    try { return localStorage.getItem('astria_has_completed_analysis') === 'true'; } catch { return false; }
   });
 
-  // Active view: 'workspace' | 'analysis' | 'dashboard' | 'interview' | 'tailored' | 'roadmap'
   const [activeView, setActiveView] = useState(() => {
     try {
       const completed = localStorage.getItem('astria_has_completed_analysis') === 'true';
       return completed ? 'dashboard' : 'workspace';
-    } catch {
-      return 'workspace';
-    }
+    } catch { return 'workspace'; }
   });
 
-  // Candidate Profile & Target Role
-  const [candidateName, setCandidateName] = useState('Alex Chen');
   const [targetRole, setTargetRole] = useState('Senior Software Engineer');
-  const [rawResumeText, setRawResumeText] = useState(DEFAULT_RESUME);
-  const [rawJobDescription, setRawJobDescription] = useState('');
 
-  // Loading & Overlay state (Screen 2)
+  // All inputs start blank — user provides their own data
+  const [rawResumeText, setRawResumeText] = useState('');
+  const [rawJobDescription, setRawJobDescription] = useState('');
+  const [rawStrengths, setRawStrengths] = useState('');
+
+  // Loading & Overlay state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingTailored, setIsGeneratingTailored] = useState(false);
   const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
 
-  // Analysis result (Screen 3)
   const [analysisResult, setAnalysisResult] = useState(() => {
     try {
       const cached = localStorage.getItem('astria_cached_analysis');
       return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   });
 
-  // Screen 4: Skill Masterclass Modal state
   const [masterclassModal, setMasterclassModal] = useState({
-    isOpen: false,
-    skillName: '',
-    skillType: 'missing'
+    isOpen: false, skillName: '', skillType: 'missing'
   });
 
-  // Socratic AI Tutor Sandbox state (preserves existing feature)
   const [tutorSession, setTutorSession] = useState({
-    isOpen: false,
-    skill: 'System Design',
-    moduleTitle: 'Core Architecture'
+    isOpen: false, skill: 'System Design', moduleTitle: 'Core Architecture'
   });
 
-  // Screen 5: Returning User Performance metrics
   const [readinessScore, setReadinessScore] = useState(() => {
-    try {
-      const saved = localStorage.getItem('astria_readiness_score');
-      return saved ? Number(saved) : 78;
-    } catch {
-      return 78;
-    }
+    try { const s = localStorage.getItem('astria_readiness_score'); return s ? Number(s) : 0; } catch { return 0; }
   });
-  const [previousScore, setPreviousScore] = useState(64);
+  const [previousScore, setPreviousScore] = useState(0);
 
   const [interviewMetrics, setInterviewMetrics] = useState(() => {
     try {
       const saved = localStorage.getItem('astria_interview_metrics');
-      return saved
-        ? JSON.parse(saved)
-        : {
-            fillerRate: 2.1,
-            fillerReductionPercent: 34,
-            fillerCounts: {
-              um: 3,
-              uh: 2,
-              like: 4,
-              'you know': 1,
-              basically: 2,
-              actually: 1
-            },
-            technicalAccuracy: 86,
-            sessionsCount: 4,
-            trend: [62, 68, 74, 86]
-          };
-    } catch {
-      return {
-        fillerRate: 2.1,
-        fillerReductionPercent: 34,
-        fillerCounts: {
-          um: 3,
-          uh: 2,
-          like: 4,
-          'you know': 1,
-          basically: 2,
-          actually: 1
-        },
-        technicalAccuracy: 86,
-        sessionsCount: 4,
-        trend: [62, 68, 74, 86]
+      return saved ? JSON.parse(saved) : {
+        technicalAccuracy: 0, sessionsCount: 0, trend: []
       };
+    } catch {
+      return { technicalAccuracy: 0, sessionsCount: 0, trend: [] };
     }
   });
 
-  // Tailored Resume Data & Roadmap Data
   const [tailoredData, setTailoredData] = useState(null);
   const [roadmapData, setRoadmapData] = useState(null);
 
-  // Sync state changes to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem('astria_has_completed_analysis', hasCompletedAnalysis ? 'true' : 'false');
-    } catch (e) {
-      console.warn('Storage sync error', e);
-    }
+    try { localStorage.setItem('astria_has_completed_analysis', hasCompletedAnalysis ? 'true' : 'false'); } catch {}
   }, [hasCompletedAnalysis]);
 
   useEffect(() => {
     if (analysisResult) {
-      try {
-        localStorage.setItem('astria_cached_analysis', JSON.stringify(analysisResult));
-      } catch (e) {
-        console.warn('Storage sync error', e);
-      }
+      try { localStorage.setItem('astria_cached_analysis', JSON.stringify(analysisResult)); } catch {}
     }
   }, [analysisResult]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('astria_readiness_score', String(readinessScore));
-    } catch (e) {
-      console.warn('Storage sync error', e);
-    }
+    try { localStorage.setItem('astria_readiness_score', String(readinessScore)); } catch {}
   }, [readinessScore]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('astria_interview_metrics', JSON.stringify(interviewMetrics));
-    } catch (e) {
-      console.warn('Storage sync error', e);
-    }
+    try { localStorage.setItem('astria_interview_metrics', JSON.stringify(interviewMetrics)); } catch {}
   }, [interviewMetrics]);
 
-  // Section 3 -> Section 4 -> Section 5 Execution Pipeline
-  const handleExecuteAnalysis = async ({ resumeText, file, strengths, jobDescription }) => {
-    setIsAnalyzing(true);
-    setRawJobDescription(jobDescription);
-    if (resumeText) setRawResumeText(resumeText);
+  const fallbackLocalAnalysis = (jd = '', strengths = '', resume = '') => {
+    const jdLower = jd.toLowerCase();
+    const resumeLower = (resume + ' ' + strengths).toLowerCase();
 
-    try {
-      let response;
-      if (file) {
-        const formData = new FormData();
-        formData.append('resume_file', file);
-        formData.append('job_description', jobDescription);
-        formData.append('target_role', targetRole);
-        response = await fetch(`${API_BASE}/api/analyze`, {
-          method: 'POST',
-          body: formData
-        });
-      } else {
-        const formData = new FormData();
-        formData.append('resume_text', resumeText || DEFAULT_RESUME);
-        formData.append('job_description', jobDescription);
-        formData.append('target_role', targetRole);
-        response = await fetch(`${API_BASE}/api/analyze`, {
-          method: 'POST',
-          body: formData
-        });
-      }
+    // Dynamically derive skills from JD keywords
+    const allRequiredKeywords = jdLower.match(/\b(python|javascript|typescript|java|react|vue|angular|node|fastapi|django|flask|spring|aws|gcp|azure|kubernetes|docker|kafka|redis|postgresql|mysql|mongodb|graphql|rest|sql|git|ci\/cd|terraform|ansible|linux|bash)\b/g) || ['system design', 'api design', 'databases'];
+    const uniqueReqs = [...new Set(allRequiredKeywords)];
 
-      if (response && response.ok) {
-        const data = await response.json();
-        setAnalysisResult(data);
-        const score = Math.round(data?.match_result?.score_percentage || 72);
-        setReadinessScore(score);
-      } else {
-        // Fallback deterministic computation
-        fallbackLocalAnalysis(jobDescription, strengths);
+    const matched = [], partial = [], missing = [];
+    uniqueReqs.slice(0, 8).forEach(skill => {
+      if (resumeLower.includes(skill)) {
+        matched.push({ name: skill.charAt(0).toUpperCase() + skill.slice(1), status: 'MATCHED', weight: 1.0, category: 'Skills', reasoning: `Verified in your resume/strengths.` });
+      } else if (jdLower.includes(skill)) {
+        missing.push({ name: skill.charAt(0).toUpperCase() + skill.slice(1), status: 'MISSING', weight: 0.0, category: 'Skills', reasoning: `Required by job description — not found in your profile.` });
       }
-    } catch (err) {
-      console.warn('Backend /api/analyze unavailable, executing local zero-hallucination analysis:', err);
-      fallbackLocalAnalysis(jobDescription, strengths);
-    } finally {
-      // Delay slightly for screen 2 progress visual
-      setTimeout(() => {
-        setIsAnalyzing(false);
-        setHasCompletedAnalysis(true);
-        setActiveView('analysis');
-      }, 1400);
+    });
+
+    if (matched.length === 0 && missing.length === 0) {
+      matched.push({ name: 'Core Problem Solving', status: 'MATCHED', weight: 1.0, category: 'General', reasoning: 'Baseline technical aptitude.' });
+      partial.push({ name: 'Domain Specialization', status: 'PARTIAL', weight: 0.5, category: 'General', reasoning: 'Further specialization matches the target role.' });
     }
-  };
 
-  const fallbackLocalAnalysis = (jd = '', userStrengths = '') => {
-    const matched = [
-      {
-        name: 'Python (Expert)',
-        status: 'MATCHED',
-        weight: 1.0,
-        category: 'Languages',
-        reasoning: 'Verified deep production experience in asynchronous Python and standard libraries matching backend requirements.'
-      },
-      {
-        name: 'System Design',
-        status: 'MATCHED',
-        weight: 1.0,
-        category: 'Architecture & Systems',
-        reasoning: 'Demonstrated proficiency architecting scalable distributed systems, caching layers, and decoupled services.'
-      },
-      {
-        name: 'FastAPI',
-        status: 'MATCHED',
-        weight: 1.0,
-        category: 'Backend & Frameworks',
-        reasoning: 'Hands-on experience building high-throughput asynchronous microservices.'
-      }
-    ];
+    const total = matched.length + partial.length + missing.length || 1;
+    const computedScore = Math.round(((matched.length + 0.5 * partial.length) / total) * 100);
 
-    const partial = [
-      {
-        name: 'TypeScript',
-        status: 'PARTIAL',
-        weight: 0.5,
-        category: 'Languages',
-        reasoning: 'Strong JavaScript foundations present, but specific type-safety patterns and generics require reinforcement.'
-      },
-      {
-        name: 'GraphQL',
-        status: 'PARTIAL',
-        weight: 0.5,
-        category: 'Backend & Frameworks',
-        reasoning: 'REST architecture verified; schema definition, resolvers, and federation patterns need practical hands-on application.'
-      }
-    ];
-
-    const missing = [
-      {
-        name: 'AWS & Cloud',
-        status: 'MISSING',
-        weight: 0.0,
-        category: 'DevOps & Cloud',
-        reasoning: 'Target role mandates hands-on infrastructure deployment via ECS, Lambda, and IAM roles not documented in profile.'
-      },
-      {
-        name: 'REST APIs',
-        status: 'MISSING',
-        weight: 0.0,
-        category: 'Backend & Frameworks',
-        reasoning: 'Core API design contracts, OpenAPI specification, and rate-limiting patterns need dedicated evidence.'
-      }
-    ];
-
-    const totalReq = matched.length + partial.length + missing.length;
-    const computedScore = Math.round(((matched.length * 1.0 + partial.length * 0.5) / totalReq) * 100);
-
-    const fallbackResult = {
+    const result = {
       document_id: 'doc_local_astria',
       target_role: targetRole,
-      sanitized_resume_text: DEFAULT_RESUME,
+      sanitized_resume_text: resume,
       match_result: {
         score_percentage: computedScore,
         matched_skills: matched,
@@ -305,66 +144,79 @@ export default function App() {
           partial_count: partial.length,
           missing_count: missing.length,
           bonus_count: 0,
-          total_required: totalReq,
-          audit_expression: `(${matched.length} + 0.5 × ${partial.length}) / ${totalReq} × 100 = ${computedScore}%`
+          total_required: total,
+          audit_expression: `(${matched.length} + 0.5 × ${partial.length}) / ${total} × 100 = ${computedScore}%`
         }
       }
     };
-
-    setAnalysisResult(fallbackResult);
+    setAnalysisResult(result);
     setReadinessScore(computedScore);
   };
 
-  // Section 6: Screen 4 Skill Masterclass completion handler
+  const handleExecuteAnalysis = async ({ resumeText, file, strengths, jobDescription }) => {
+    setIsAnalyzing(true);
+    setRawJobDescription(jobDescription);
+    setRawStrengths(strengths);
+    if (resumeText) setRawResumeText(resumeText);
+
+    try {
+      const formData = new FormData();
+      if (file) {
+        formData.append('resume_file', file);
+      } else {
+        formData.append('resume_text', resumeText || '');
+      }
+      formData.append('job_description', jobDescription);
+      formData.append('target_role', targetRole);
+
+      const response = await fetch(`${API_BASE}/api/analyze`, { method: 'POST', body: formData });
+      if (response && response.ok) {
+        const data = await response.json();
+        setAnalysisResult(data);
+        setReadinessScore(Math.round(data?.match_result?.score_percentage || 0));
+      } else {
+        fallbackLocalAnalysis(jobDescription, strengths, resumeText || '');
+      }
+    } catch {
+      fallbackLocalAnalysis(jobDescription, strengths, resumeText || '');
+    } finally {
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        setHasCompletedAnalysis(true);
+        setActiveView('analysis');
+      }, 1400);
+    }
+  };
+
   const handleMarkSkillComplete = (skillName) => {
     if (!analysisResult?.match_result) return;
-
     const mr = { ...analysisResult.match_result };
-    const partialIndex = mr.partial_skills?.findIndex((s) => s.name === skillName) ?? -1;
-    const missingIndex = mr.missing_skills?.findIndex((s) => s.name === skillName) ?? -1;
+    const partialIdx = mr.partial_skills?.findIndex(s => s.name === skillName) ?? -1;
+    const missingIdx = mr.missing_skills?.findIndex(s => s.name === skillName) ?? -1;
 
-    let elevatedSkill = null;
-
-    if (partialIndex !== -1) {
-      elevatedSkill = { ...mr.partial_skills[partialIndex], status: 'MATCHED', weight: 1.0 };
-      mr.partial_skills = mr.partial_skills.filter((_, i) => i !== partialIndex);
-    } else if (missingIndex !== -1) {
-      elevatedSkill = { ...mr.missing_skills[missingIndex], status: 'MATCHED', weight: 1.0 };
-      mr.missing_skills = mr.missing_skills.filter((_, i) => i !== missingIndex);
+    let elevated = null;
+    if (partialIdx !== -1) {
+      elevated = { ...mr.partial_skills[partialIdx], status: 'MATCHED', weight: 1.0 };
+      mr.partial_skills = mr.partial_skills.filter((_, i) => i !== partialIdx);
+    } else if (missingIdx !== -1) {
+      elevated = { ...mr.missing_skills[missingIdx], status: 'MATCHED', weight: 1.0 };
+      mr.missing_skills = mr.missing_skills.filter((_, i) => i !== missingIdx);
     } else {
-      elevatedSkill = {
-        name: skillName,
-        status: 'MATCHED',
-        weight: 1.0,
-        reasoning: 'Verified through Astria Capstone deliverable and official documentation masterclass.'
-      };
+      elevated = { name: skillName, status: 'MATCHED', weight: 1.0, reasoning: 'Verified through Astria Capstone.' };
     }
+    mr.matched_skills = [...(mr.matched_skills || []), elevated];
 
-    mr.matched_skills = [...(mr.matched_skills || []), elevatedSkill];
-
-    // Recompute score
     const total = (mr.matched_skills?.length || 0) + (mr.partial_skills?.length || 0) + (mr.missing_skills?.length || 0);
     const newScore = Math.min(100, Math.round((((mr.matched_skills?.length || 0) + 0.5 * (mr.partial_skills?.length || 0)) / (total || 1)) * 100));
     mr.score_percentage = newScore;
+    if (mr.audit) { mr.audit.matched_count = mr.matched_skills.length; mr.audit.partial_count = mr.partial_skills.length; mr.audit.missing_count = mr.missing_skills.length; }
 
-    if (mr.audit) {
-      mr.audit.matched_count = mr.matched_skills.length;
-      mr.audit.partial_count = mr.partial_skills.length;
-      mr.audit.missing_count = mr.missing_skills.length;
-    }
-
-    const updatedAnalysis = { ...analysisResult, match_result: mr };
-    setAnalysisResult(updatedAnalysis);
+    setAnalysisResult({ ...analysisResult, match_result: mr });
     setPreviousScore(readinessScore);
     setReadinessScore(newScore);
-
-    // Close modal after brief success
-    setTimeout(() => {
-      setMasterclassModal({ isOpen: false, skillName: '', skillType: 'missing' });
-    }, 1200);
+    setTimeout(() => setMasterclassModal({ isOpen: false, skillName: '', skillType: 'missing' }), 1200);
   };
 
-  // Section 7: ATS Tailored Bullets generation
   const handleGenerateTailored = async () => {
     setIsGeneratingTailored(true);
     try {
@@ -372,63 +224,38 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sanitized_resume_text: analysisResult?.sanitized_resume_text || DEFAULT_RESUME,
+          sanitized_resume_text: analysisResult?.sanitized_resume_text || rawResumeText,
           target_role: targetRole,
           partial_skills: analysisResult?.match_result?.partial_skills || [],
-          matched_skills: (analysisResult?.match_result?.matched_skills || []).map((s) => s.name)
+          matched_skills: (analysisResult?.match_result?.matched_skills || []).map(s => s.name)
         })
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTailoredData(data);
-      } else {
-        fallbackTailoredBullets();
-      }
-    } catch {
-      fallbackTailoredBullets();
-    } finally {
-      setIsGeneratingTailored(false);
-    }
+      if (response.ok) { setTailoredData(await response.json()); }
+      else { fallbackTailoredBullets(); }
+    } catch { fallbackTailoredBullets(); }
+    finally { setIsGeneratingTailored(false); }
   };
 
   const fallbackTailoredBullets = () => {
+    const matched = analysisResult?.match_result?.matched_skills?.map(s => s.name) || ['your verified skills'];
     setTailoredData({
       target_role: targetRole,
       bullet_points: [
-        {
-          targeted_skill: 'FastAPI & Microservices',
-          tailored_bullet: 'Engineered high-throughput asynchronous REST microservices in FastAPI and Python, handling 1.5M daily requests with 99.9% uptime.',
-          transferable_rationale: 'Demonstrates concurrency mastery and production-grade SLA ownership.'
-        },
-        {
-          targeted_skill: 'Distributed Caching',
-          tailored_bullet: 'Architected distributed caching layers with Redis and PostgreSQL, reducing p99 API response latencies by 42%.',
-          transferable_rationale: 'Highlights latency reduction and data storage optimization.'
-        },
-        {
-          targeted_skill: 'Zero-Trust Data Protection',
-          tailored_bullet: 'Designed automated ingestion-time PII anonymization and zero-trust sanitization pipelines, safeguarding sensitive data compliance.',
-          transferable_rationale: 'Aligns directly with modern cloud security and compliance criteria.'
-        }
+        { targeted_skill: matched[0] || 'Core Engineering', tailored_bullet: `Engineered scalable systems leveraging ${matched[0] || 'core technologies'}, handling high-throughput production workloads with measurable performance improvements.`, transferable_rationale: 'Demonstrates production-grade engineering ownership.' },
+        { targeted_skill: 'Architecture', tailored_bullet: 'Architected distributed service meshes with automated health checks, circuit breakers, and structured observability dashboards.', transferable_rationale: 'Highlights system design and reliability engineering depth.' },
       ],
-      optimization_advice: 'Each tailored bullet strictly integrates active verbs, concrete architectural tech stacks, and quantifiable business outcomes.'
+      optimization_advice: 'Each tailored bullet integrates active verbs, concrete tech stacks, and quantifiable outcomes.'
     });
   };
 
-  // Section 9: Speech Interview metrics update
   const handleUpdateInterviewMetrics = ({ fillerRate, fillerCounts, technicalAccuracy }) => {
-    setInterviewMetrics((prev) => ({
+    setInterviewMetrics(prev => ({
       ...prev,
-      fillerRate,
-      fillerCounts,
       technicalAccuracy,
       sessionsCount: prev.sessionsCount + 1,
-      trend: [...prev.trend.slice(-4), technicalAccuracy]
+      trend: [...(prev.trend || []).slice(-5), technicalAccuracy]
     }));
   };
-
-  const streakCount = 5;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans flex flex-col transition-colors duration-200">
@@ -437,156 +264,128 @@ export default function App() {
         activeView={activeView}
         setActiveView={setActiveView}
         hasCompletedAnalysis={hasCompletedAnalysis}
-        candidateName={candidateName}
-        streakCount={streakCount}
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Screen 1: Main Workspace */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
+        {/* Screen 1: Workspace */}
         {activeView === 'workspace' && (
           <WorkspaceScreen
             onExecuteAnalysis={handleExecuteAnalysis}
             isLoading={isAnalyzing}
+            initialResumeText={rawResumeText}
+            initialStrengths={rawStrengths}
+            initialJobDescription={rawJobDescription}
           />
         )}
 
-        {/* Screen 3: Refined Gap Analysis Dashboard */}
+        {/* Screen 3: Gap Analysis Dashboard */}
         {activeView === 'analysis' && (
           <GapDashboard
             analysisData={analysisResult}
-            onOpenMasterclass={(skillName, skillType) => {
-              setMasterclassModal({ isOpen: true, skillName, skillType });
-            }}
-            onProceedToTailoring={() => {
-              setActiveView('tailored');
-              if (!tailoredData) handleGenerateTailored();
-            }}
+            onOpenMasterclass={(skillName, skillType) => setMasterclassModal({ isOpen: true, skillName, skillType })}
+            onProceedToTailoring={() => { setActiveView('tailored'); if (!tailoredData) handleGenerateTailored(); }}
             onProceedToInterview={() => setActiveView('interview')}
             onResetWorkspace={() => setActiveView('workspace')}
           />
         )}
 
-        {/* Screen 5: Performance & Readiness Dashboard */}
+        {/* Screen 5: Performance Dashboard */}
         {activeView === 'dashboard' && (
           <PerformanceDashboard
-            candidateName={candidateName}
+            candidateName={user.fullName || (user.isGuest ? 'Guest' : '')}
             targetRole={targetRole}
             readinessScore={readinessScore}
             previousScore={previousScore}
             interviewMetrics={interviewMetrics}
             onStartAction={() => {
-              setMasterclassModal({
-                isOpen: true,
-                skillName: 'AWS & Cloud',
-                skillType: 'missing'
-              });
+              const firstMissing = analysisResult?.match_result?.missing_skills?.[0]?.name;
+              setMasterclassModal({ isOpen: true, skillName: firstMissing || 'System Design', skillType: 'missing' });
             }}
             onLaunchInterview={() => setActiveView('interview')}
-            onDownloadResume={() => {
-              setActiveView('tailored');
-              if (!tailoredData) handleGenerateTailored();
-            }}
+            onDownloadResume={() => { setActiveView('tailored'); if (!tailoredData) handleGenerateTailored(); }}
             onOpenWorkspace={() => setActiveView('workspace')}
           />
         )}
 
-        {/* Screen 6: AI Technical Voice Interviewer */}
+        {/* Screen 6: AI Technical Interviewer */}
         {activeView === 'interview' && (
           <InterviewModule
             targetRole={targetRole}
+            rawResumeText={rawResumeText}
             onBackToDashboard={() => setActiveView('dashboard')}
             onUpdateMetrics={handleUpdateInterviewMetrics}
           />
         )}
 
-        {/* ATS Grammarly-Style Resume Builder */}
+        {/* ATS Resume Builder */}
         {activeView === 'resume-builder' && (
-          <ResumeBuilder candidateName={candidateName} />
+          <ResumeBuilder
+            candidateName={user.fullName || ''}
+            rawResumeText={rawResumeText}
+          />
         )}
 
-        {/* ATS Resume Tailoring & PDF Export */}
+        {/* ATS Resume Tailoring */}
         {activeView === 'tailored' && (
           <TailoredResume
             tailoredData={tailoredData}
             onGenerateTailored={handleGenerateTailored}
             isLoading={isGeneratingTailored}
             targetRole={targetRole}
-            candidateName={candidateName}
+            candidateName={user.fullName || ''}
           />
         )}
 
-        {/* Pedagogical Roadmap View */}
+        {/* Pedagogical Roadmap */}
         {activeView === 'roadmap' && (
           <RoadmapView
             roadmap={roadmapData}
             onGenerateRoadmap={async () => {
               setIsGeneratingRoadmap(true);
               setTimeout(() => {
+                const partials = analysisResult?.match_result?.partial_skills || [];
+                const missings = analysisResult?.match_result?.missing_skills || [];
+                const skillsToTeach = [...partials, ...missings].slice(0, 4);
                 setRoadmapData({
                   target_role: targetRole,
-                  pedagogical_summary: 'Comprehensive 4-week structured curriculum bridging cloud infrastructure and advanced API patterns.',
-                  total_weeks: 4,
+                  pedagogical_summary: `Personalized ${skillsToTeach.length}-week curriculum bridging your verified gaps for ${targetRole}.`,
+                  total_weeks: Math.max(2, skillsToTeach.length),
                   weekly_hours: 10,
-                  milestones: [
-                    {
-                      week_number: 1,
-                      milestone_title: 'AWS Cloud & Serverless Infrastructure',
-                      goal_description: 'Master IAM zero-trust access control, Lambda execution contexts, and S3 secure storage.',
-                      modules: [
-                        {
-                          id: 'm1',
-                          focus_skill: 'AWS & Cloud',
-                          title: 'S3 & Lambda Microservice Architecture',
-                          difficulty: 'Intermediate',
-                          estimated_hours: 5,
-                          core_concepts: ['IAM Role Delegation', 'S3 Bucket Encryption', 'Event-driven Lambda Triggers'],
-                          practical_project: {
-                            project_title: 'S3-backed REST Microservice',
-                            deliverable_description: 'Deploy an AWS Lambda function fronted by API Gateway storing encrypted JSON payloads.'
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      week_number: 2,
-                      milestone_title: 'API Gateway & GraphQL Federation',
-                      goal_description: 'Construct type-safe query schemas and resolve N+1 database queries with DataLoader.',
-                      modules: [
-                        {
-                          id: 'm2',
-                          focus_skill: 'GraphQL',
-                          title: 'DataLoader Batching & Schema Federation',
-                          difficulty: 'Advanced',
-                          estimated_hours: 5,
-                          core_concepts: ['Query Resolvers', 'DataLoader Caching', 'Schema Stitching'],
-                          practical_project: {
-                            project_title: 'High-Throughput GraphQL Service',
-                            deliverable_description: 'Implement a batched GraphQL query endpoint eliminating redundant database lookups.'
-                          }
-                        }
-                      ]
-                    }
-                  ]
+                  milestones: skillsToTeach.map((skill, i) => ({
+                    week_number: i + 1,
+                    milestone_title: `${skill.name} — ${skill.status === 'PARTIAL' ? 'Reinforcement' : 'Foundations'}`,
+                    goal_description: skill.reasoning || `Build practical mastery of ${skill.name} with hands-on deliverables.`,
+                    modules: [{
+                      id: `m${i + 1}`,
+                      focus_skill: skill.name,
+                      title: `${skill.name} Core Architecture & Production Patterns`,
+                      difficulty: i < 1 ? 'Intermediate' : 'Advanced',
+                      estimated_hours: 5,
+                      core_concepts: [`${skill.name} fundamentals`, 'Production best practices', 'Testing & validation'],
+                      practical_project: {
+                        project_title: `${skill.name} End-to-End Capstone`,
+                        deliverable_description: `Build and deploy a production-grade ${skill.name} implementation demonstrating mastery of the core concepts.`
+                      }
+                    }]
+                  }))
                 });
                 setIsGeneratingRoadmap(false);
               }, 600);
             }}
             isLoading={isGeneratingRoadmap}
             targetRole={targetRole}
-            missingSkillsCount={analysisResult?.match_result?.missing_skills?.length || 2}
-            partialSkillsCount={analysisResult?.match_result?.partial_skills?.length || 2}
-            onOpenTutor={(skill, moduleTitle) => {
-              setTutorSession({ isOpen: true, skill, moduleTitle });
-            }}
+            missingSkillsCount={analysisResult?.match_result?.missing_skills?.length || 0}
+            partialSkillsCount={analysisResult?.match_result?.partial_skills?.length || 0}
+            onOpenTutor={(skill, moduleTitle) => setTutorSession({ isOpen: true, skill, moduleTitle })}
           />
         )}
       </main>
 
-      {/* Screen 2: Real-time Analysis Loading Overlay */}
+      {/* Screen 2: Analysis Loading Overlay */}
       <AnalysisOverlay isOpen={isAnalyzing} />
 
-      {/* Screen 4: Skill Masterclass & Capstone Modal */}
+      {/* Screen 4: Skill Masterclass Modal */}
       <SkillMasterclass
         isOpen={masterclassModal.isOpen}
         skillName={masterclassModal.skillName}
@@ -595,38 +394,31 @@ export default function App() {
         onMarkComplete={handleMarkSkillComplete}
       />
 
-      {/* Socratic AI Tutor Modal (preserves existing feature) */}
+      {/* Socratic AI Tutor Modal */}
       <AITutorSandbox
         isOpen={tutorSession.isOpen}
         skill={tutorSession.skill}
         moduleTitle={tutorSession.moduleTitle}
-        onClose={() => setTutorSession((prev) => ({ ...prev, isOpen: false }))}
+        onClose={() => setTutorSession(prev => ({ ...prev, isOpen: false }))}
       />
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 mt-auto transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
           <div>
-            <strong className="text-slate-700 dark:text-slate-300 font-semibold">Astria Career Co-Pilot</strong> — Deterministic Skill Gap Analysis & Zero-Trust Privacy Architecture
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.clear();
-                setHasCompletedAnalysis(false);
-                setActiveView('workspace');
-                setAnalysisResult(null);
-                setTailoredData(null);
-              }}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-            >
-              Reset Session
-            </button>
-            <span>v3.0 Enterprise — Dark Mode + ATS Builder + Voice PII</span>
+            <strong className="text-slate-700 dark:text-slate-300 font-semibold">Astria Career Co-Pilot</strong>
+            {' '}— Deterministic Skill Gap Analysis & Zero-Trust Privacy Architecture
           </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <UserProvider>
+      <AppInner />
+    </UserProvider>
   );
 }

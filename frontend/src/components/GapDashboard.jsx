@@ -5,7 +5,7 @@ import {
   XCircle, 
   ExternalLink, 
   ArrowRight, 
-  Mic, 
+  Terminal, 
   FileText, 
   RotateCcw,
   Sparkles,
@@ -175,7 +175,7 @@ export default function GapDashboard({
         <section>
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-5 h-5 text-amber-600" />
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Category B: Partial / In-Progress Skills ({partialSkills.length})
             </h2>
           </div>
@@ -193,7 +193,7 @@ export default function GapDashboard({
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3">
-                      <span className="text-base font-bold text-slate-900">{skill.name}</span>
+                      <span className="text-base font-bold text-slate-900 dark:text-slate-100">{skill.name}</span>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                         Status: Partial (50% Weight)
                       </span>
@@ -207,7 +207,7 @@ export default function GapDashboard({
                       <span>{skill.name} Masterclass ↗</span>
                     </button>
                   </div>
-                  <p className="text-sm text-slate-600 leading-relaxed">
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                     {skill.reasoning || 'Adjacent skills present; targeted practice needed to solidify full requirements.'}
                   </p>
                 </div>
@@ -220,7 +220,7 @@ export default function GapDashboard({
         <section>
           <div className="flex items-center gap-2 mb-3">
             <XCircle className="w-5 h-5 text-rose-600" />
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Category C: Missing Skill Gaps ({missingSkills.length})
             </h2>
           </div>
@@ -238,7 +238,7 @@ export default function GapDashboard({
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3">
-                      <span className="text-base font-bold text-slate-900">{skill.name}</span>
+                      <span className="text-base font-bold text-slate-900 dark:text-slate-100">{skill.name}</span>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
                         Status: Missing Gap (0%)
                       </span>
@@ -252,7 +252,7 @@ export default function GapDashboard({
                       <span>{skill.name} Masterclass ↗</span>
                     </button>
                   </div>
-                  <p className="text-sm text-slate-600 leading-relaxed">
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                     {skill.reasoning || 'Mandated in target job requirements with no demonstrable exposure found.'}
                   </p>
                 </div>
@@ -277,10 +277,10 @@ export default function GapDashboard({
           <button
             type="button"
             onClick={onProceedToInterview}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold bg-slate-100 text-slate-800 hover:bg-slate-200 transition-all"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
           >
-            <Mic className="w-4 h-4 text-slate-600" />
-            <span>Mock Voice Interview</span>
+            <Terminal className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            <span>Mock Technical Interview</span>
           </button>
 
           <button
