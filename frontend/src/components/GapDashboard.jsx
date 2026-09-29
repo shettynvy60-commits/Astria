@@ -71,13 +71,13 @@ export default function GapDashboard({
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       {/* Top Banner / Match Summary */}
-      <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold mb-3">
             <span>Deterministic Match Analysis</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Target Fit for <span className="text-sky-700">{targetRole}</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">
+            Target Fit for <span className="text-sky-700 dark:text-sky-400">{targetRole}</span>
           </h1>
           <p className="text-sm text-slate-600 max-w-2xl mt-1 leading-relaxed">
             Evaluated using Astria's transparent scoring formula:{' '}
@@ -88,7 +88,7 @@ export default function GapDashboard({
         </div>
 
         {/* Score Card */}
-        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl flex items-center gap-5 shrink-0 min-w-[240px]">
+        <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 rounded-xl flex items-center gap-5 shrink-0 min-w-[240px]">
           <div className="relative w-18 h-18 flex items-center justify-center">
             <svg className="w-16 h-16 transform -rotate-90">
               <circle
@@ -113,7 +113,7 @@ export default function GapDashboard({
                 strokeLinecap="round"
               />
             </svg>
-            <span className="absolute text-lg font-black text-slate-900">{score}%</span>
+            <span className="absolute text-lg font-black text-slate-900 dark:text-slate-50">{score}%</span>
           </div>
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overall Match</div>
@@ -133,7 +133,7 @@ export default function GapDashboard({
         <section>
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
               Category A: Mastered Skills ({matchedSkills.length})
             </h2>
           </div>
@@ -147,11 +147,11 @@ export default function GapDashboard({
               matchedSkills.map((skill, idx) => (
                 <div
                   key={idx}
-                  className="border-l-4 border-l-emerald-500 bg-white p-5 rounded-r-xl border-y border-r border-slate-200 shadow-sm transition-all hover:shadow-md"
+                  className="border-l-4 border-l-emerald-500 bg-white dark:bg-slate-900 p-5 rounded-r-xl border-y border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-3">
-                      <span className="text-base font-bold text-slate-900">{skill.name}</span>
+                      <span className="text-base font-bold text-slate-900 dark:text-slate-50">{skill.name}</span>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                         Status: Mastered (100%)
                       </span>
@@ -189,7 +189,7 @@ export default function GapDashboard({
               partialSkills.map((skill, idx) => (
                 <div
                   key={idx}
-                  className="border-l-4 border-l-amber-500 bg-white p-5 rounded-r-xl border-y border-r border-slate-200 shadow-sm transition-all hover:shadow-md"
+                  className="border-l-4 border-l-amber-500 bg-white dark:bg-slate-900 p-5 rounded-r-xl border-y border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3">
@@ -234,7 +234,7 @@ export default function GapDashboard({
               missingSkills.map((skill, idx) => (
                 <div
                   key={idx}
-                  className="border-l-4 border-l-rose-500 bg-white p-5 rounded-r-xl border-y border-r border-slate-200 shadow-sm transition-all hover:shadow-md"
+                  className="border-l-4 border-l-rose-500 bg-white dark:bg-slate-900 p-5 rounded-r-xl border-y border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:shadow-md"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3">
@@ -263,7 +263,7 @@ export default function GapDashboard({
       </div>
 
       {/* CTA Row */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <button
           type="button"
           onClick={onResetWorkspace}

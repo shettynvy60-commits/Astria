@@ -9,6 +9,7 @@ import InterviewModule from './components/InterviewModule';
 import TailoredResume from './components/TailoredResume';
 import RoadmapView from './components/RoadmapView';
 import AITutorSandbox from './components/AITutorSandbox';
+import ResumeBuilder from './components/ResumeBuilder';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -427,14 +428,17 @@ export default function App() {
     }));
   };
 
+  const streakCount = 5;
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans flex flex-col transition-colors duration-200">
       {/* Top Navigation */}
       <Navbar
         activeView={activeView}
         setActiveView={setActiveView}
         hasCompletedAnalysis={hasCompletedAnalysis}
         candidateName={candidateName}
+        streakCount={streakCount}
       />
 
       {/* Main Container */}
@@ -494,6 +498,11 @@ export default function App() {
             onBackToDashboard={() => setActiveView('dashboard')}
             onUpdateMetrics={handleUpdateInterviewMetrics}
           />
+        )}
+
+        {/* ATS Grammarly-Style Resume Builder */}
+        {activeView === 'resume-builder' && (
+          <ResumeBuilder candidateName={candidateName} />
         )}
 
         {/* ATS Resume Tailoring & PDF Export */}
@@ -595,10 +604,10 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-6 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 mt-auto transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
           <div>
-            <strong className="text-slate-700 font-semibold">Astria Career Co-Pilot</strong> — Deterministic Skill Gap Analysis & Zero-Trust Privacy Architecture
+            <strong className="text-slate-700 dark:text-slate-300 font-semibold">Astria Career Co-Pilot</strong> — Deterministic Skill Gap Analysis & Zero-Trust Privacy Architecture
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -610,11 +619,11 @@ export default function App() {
                 setAnalysisResult(null);
                 setTailoredData(null);
               }}
-              className="text-slate-400 hover:text-slate-600 transition-colors"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
               Reset Session
             </button>
-            <span>v2.0 Clean Enterprise Edition</span>
+            <span>v3.0 Enterprise — Dark Mode + ATS Builder + Voice PII</span>
           </div>
         </div>
       </footer>

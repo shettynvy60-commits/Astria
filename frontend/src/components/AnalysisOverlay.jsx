@@ -29,14 +29,14 @@ export default function AnalysisOverlay({ isOpen, stepIndex = 0 }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-all animate-fade-in">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full mx-4 p-8 text-center">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full mx-4 p-8 text-center">
         {/* Animated Icon */}
         <div className="w-16 h-16 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center mx-auto mb-5">
           <Loader2 className="w-8 h-8 text-sky-600 animate-spin" />
         </div>
 
         {/* Title */}
-        <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
           Analyzing Skill Match & Vaulting Personal Data...
         </h3>
         <p className="text-sm text-slate-500 mt-2 mb-6">
@@ -44,9 +44,9 @@ export default function AnalysisOverlay({ isOpen, stepIndex = 0 }) {
         </p>
 
         {/* Progress Bar */}
-        <div className="w-full bg-slate-100 rounded-full h-2 mb-6 overflow-hidden">
+        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 mb-6 overflow-hidden">
           <div
-            className="bg-zinc-900 h-2 rounded-full transition-all duration-500 ease-out"
+            className="bg-zinc-900 dark:bg-slate-200 h-2 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>

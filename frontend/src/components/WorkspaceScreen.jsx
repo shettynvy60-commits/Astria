@@ -73,7 +73,7 @@ export default function WorkspaceScreen({ onExecuteAnalysis, isLoading }) {
     <div className="animate-fade-in">
       {/* Header & Title Block */}
       <div className="mb-6">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">
           Astria Career Co-Pilot
         </h1>
         <p className="text-base text-slate-600 max-w-3xl mt-2 leading-relaxed">
@@ -89,11 +89,11 @@ export default function WorkspaceScreen({ onExecuteAnalysis, isLoading }) {
       {/* 3-Column Horizontal Input Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         {/* Column 1: Upload Resume */}
-        <section id="block-resume" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900 mb-3">1. Upload Resume</h2>
+        <section id="block-resume" className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">1. Upload Resume</h2>
           
           {/* Toggle tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-4">
             <button
               type="button"
               onClick={() => setInputMode('upload')}
@@ -169,8 +169,8 @@ export default function WorkspaceScreen({ onExecuteAnalysis, isLoading }) {
         </section>
 
         {/* Column 2: Core Strengths */}
-        <section id="block-strengths" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900 mb-1">2. Your Verified Top Strengths</h2>
+        <section id="block-strengths" className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-1">2. Your Verified Top Strengths</h2>
           <p className="text-xs text-slate-500 mb-4">
             Specify languages/tools you are truly expert at to prioritize over general resume items.
           </p>
@@ -183,8 +183,8 @@ export default function WorkspaceScreen({ onExecuteAnalysis, isLoading }) {
         </section>
 
         {/* Column 3: Target Job Description */}
-        <section id="block-job-description" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900 mb-1">3. Target Job Description</h2>
+        <section id="block-job-description" className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-1">3. Target Job Description</h2>
           <p className="text-xs text-slate-500 mb-4">
             Paste the full job requirements from LinkedIn or any job board.
           </p>
