@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-  Mic, MicOff, RotateCcw, CheckCircle2, AlertCircle, Volume2, 
-  Send, Sparkles, ArrowLeft, ChevronRight, Shield
+  RotateCcw, CheckCircle2, Send, Sparkles, ArrowLeft, ChevronRight, MessageSquare
 } from 'lucide-react';
 
 const INTERVIEW_QUESTIONS = [
@@ -27,69 +26,16 @@ const INTERVIEW_QUESTIONS = [
 
 const FILLER_WORD_REGEX = /\b(um|uh|like|you know|basically|actually)\b/gi;
 
-// Voice PII redaction filter - strips spoken personal identity details
-function redactVoicePII(transcript) {
-  let redacted = transcript;
-  // Spoken name patterns (e.g. "my name is John Smith", "I'm Alex Chen")
-  redacted = redacted.replace(/\b(?:my name is|i'm|i am|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi, 
-    (match, name) => match.replace(name, '[SPOKEN_NAME_REDACTED]'));
-  // Phone numbers spoken
-  redacted = redacted.replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[SPOKEN_PHONE_REDACTED]');
-  // Email addresses spoken/typed
-  redacted = redacted.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[SPOKEN_EMAIL_REDACTED]');
-  // Location patterns
-  redacted = redacted.replace(/\b(?:i live in|i'm from|i'm based in|located in)\s+([A-Z][a-zA-Z\s,]+)/gi,
-    (match, loc) => match.replace(loc, '[SPOKEN_LOCATION_REDACTED]'));
-  return redacted;
-}
-
 export default function InterviewModule({ targetRole = 'Software Engineer', onBackToDashboard, onUpdateMetrics }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [candidateAnswer, setCandidateAnswer] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
-  const [speechSupported, setSpeechSupported] = useState(true);
-  const [piiRedacted, setPiiRedacted] = useState(false);
-  const recognitionRef = useRef(null);
   const question = INTERVIEW_QUESTIONS[currentQuestionIndex];
 
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript + ' ';
-        }
-        // Apply voice PII redaction immediately before storing
-        const raw = transcript.trim();
-        const redacted = redactVoicePII(raw);
-        if (redacted !== raw) setPiiRedacted(true);
-        setCandidateAnswer(redacted);
-      };
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
-      recognitionRef.current = recognition;
-    } else {
-      setSpeechSupported(false);
-    }
-    return () => { try { recognitionRef.current?.abort(); } catch {} };
-  }, []);
-
-  const toggleListening = () => {
-    if (!speechSupported) { alert('Web Speech API not supported. Type your answer below.'); return; }
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); }
-    else { setEvaluationResult(null); setPiiRedacted(false); try { recognitionRef.current?.start(); setIsListening(true); } catch {} }
-  };
 
   const handleEvaluate = () => {
     if (!candidateAnswer.trim()) return;
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); }
     setIsEvaluating(true);
     setTimeout(() => {
       const fillerMatches = candidateAnswer.match(FILLER_WORD_REGEX) || [];
@@ -120,8 +66,14 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
   };
 
   const handleNextQuestion = () => {
-    setCandidateAnswer(''); setEvaluationResult(null); setPiiRedacted(false);
+    setCandidateAnswer(''); setEvaluationResult(null);
     setCurrentQuestionIndex(prev => (prev + 1) % INTERVIEW_QUESTIONS.length);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      handleEvaluate();
+    }
   };
 
   return (
@@ -133,10 +85,10 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
           </button>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">Astria Technical Voice Interviewer</h1>
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">Astria Technical Interviewer</h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Simulating live technical screening for <strong className="text-slate-700 dark:text-slate-300 font-semibold">{targetRole}</strong>. Voice PII redaction is active — spoken names, phones, and emails are stripped before evaluation.
+            Simulating live technical screening for <strong className="text-slate-700 dark:text-slate-300 font-semibold">{targetRole}</strong>. Type your answer and submit for AI evaluation.
           </p>
         </div>
         <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg shrink-0">
@@ -146,46 +98,34 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
 
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
-          <Volume2 className="w-4 h-4 text-sky-600" />
+          <MessageSquare className="w-4 h-4 text-sky-600" />
           <span>Interviewer Prompt ({question.topic})</span>
         </div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 leading-snug">"{question.question}"</h2>
 
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button type="button" onClick={toggleListening}
-              className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm ${isListening ? 'bg-rose-600 text-white animate-pulse' : 'bg-zinc-900 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-white'}`}>
-              {isListening ? <><MicOff className="w-4 h-4" /><span>Stop Speaking</span></> : <><Mic className="w-4 h-4" /><span>Start Answer (Hold to Speak)</span></>}
-            </button>
-            {isListening && <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 animate-pulse">● Listening & Transcribing...</span>}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-            {piiRedacted && (
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                <Shield className="w-3.5 h-3.5" /> PII Redacted
-              </span>
-            )}
-            <span>{speechSupported ? 'Web Speech API Active' : 'Type response below'}</span>
-          </div>
-        </div>
-
         <div className="mt-4">
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-            Response Transcript (Voice-PII-Redacted | Real-Time Streaming or Editable):
+            Your Answer <span className="font-normal text-slate-400 dark:text-slate-500">(Ctrl+Enter to submit)</span>
           </label>
-          <textarea value={candidateAnswer} onChange={e => setCandidateAnswer(e.target.value)}
-            placeholder="Click 'Start Answer' to speak or type your technical answer here..."
-            className="w-full h-36 p-4 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all resize-none astria-input" />
+          <textarea
+            value={candidateAnswer}
+            onChange={e => setCandidateAnswer(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your technical answer here..."
+            className="w-full h-40 p-4 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all resize-none astria-input"
+          />
         </div>
 
         <div className="flex items-center justify-between pt-2">
-          <button type="button" onClick={() => { setCandidateAnswer(''); setPiiRedacted(false); }}
+          <button type="button" onClick={() => setCandidateAnswer('')}
             className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 inline-flex items-center gap-1">
-            <RotateCcw className="w-3.5 h-3.5" /><span>Clear Transcript</span>
+            <RotateCcw className="w-3.5 h-3.5" /><span>Clear</span>
           </button>
           <button type="button" onClick={handleEvaluate} disabled={!candidateAnswer.trim() || isEvaluating}
             className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${!candidateAnswer.trim() || isEvaluating ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-zinc-900 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-white'}`}>
-            {isEvaluating ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Evaluating...</span></> : <><Sparkles className="w-4 h-4" /><span>Analyze Answer & Speech Metrics</span></>}
+            {isEvaluating
+              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Evaluating...</span></>
+              : <><Send className="w-4 h-4" /><span>Submit & Analyze Answer</span></>}
           </button>
         </div>
       </div>
@@ -197,7 +137,7 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 mb-2">
                 <CheckCircle2 className="w-3.5 h-3.5" /><span>Evaluation Complete</span>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">Performance Evaluation & Speech Feedback</h3>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">Performance Evaluation & Feedback</h3>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-center">
