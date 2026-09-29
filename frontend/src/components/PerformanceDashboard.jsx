@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../context/ThemeContext';
 import { 
   TrendingUp, 
   Award, 
@@ -44,6 +45,8 @@ export default function PerformanceDashboard({
   onDownloadResume,
   onOpenWorkspace
 }) {
+  const { isDark } = useTheme();
+  const chartColor = isDark ? '#F8FAFC' : '#111827';
   const scoreDelta = readinessScore - previousScore;
 
   // Chart: session trend from real interview data only
@@ -58,7 +61,7 @@ export default function PerformanceDashboard({
   const atsScore = readinessScore > 0 ? readinessScore : 0;
   const categories = readinessScore > 0 ? [
     { name: 'Verified Skills', score: verifiedSkillsScore, weight: '35%', color: 'bg-emerald-500' },
-    { name: 'ATS Keyword Alignment', score: atsScore, weight: '40%', color: 'bg-sky-500' },
+    { name: 'ATS Keyword Alignment', score: atsScore, weight: '40%', color: 'bg-zinc-900 dark:bg-slate-200' },
     { name: 'Interview Fluency', score: technicalAccuracy || Math.round(readinessScore * 0.9), weight: '25%', color: 'bg-amber-500' },
   ] : [];
 
@@ -93,7 +96,7 @@ export default function PerformanceDashboard({
             <span>Readiness Score increased from {previousScore}% to {readinessScore}% (+{scoreDelta}%)</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">
-            Welcome Back, <span className="text-sky-700 dark:text-sky-400">{candidateName}</span>
+            Welcome Back, <span className="text-slate-900 dark:text-white">{candidateName}</span>
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl mt-1 leading-relaxed">
             Active Track: <strong className="text-slate-800 dark:text-slate-200 font-semibold">{targetRole}</strong>. Your ongoing technical mastery, interview practice, and resume optimizations are actively tracked below.
@@ -126,7 +129,7 @@ export default function PerformanceDashboard({
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <BarChart2 className="w-5 h-5 text-sky-600" />
+                <BarChart2 className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                 <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">Skill Progression & Readiness</h2>
               </div>
               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full">
@@ -167,8 +170,8 @@ export default function PerformanceDashboard({
               <AreaChart data={progressionData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0284C7" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#0284C7" stopOpacity={0} />
+                    <stop offset="5%" stopColor={chartColor} stopOpacity={0.24} />
+                    <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
@@ -197,12 +200,12 @@ export default function PerformanceDashboard({
                 <Area
                   type="monotone"
                   dataKey="score"
-                  stroke="#0284C7"
+                  stroke={chartColor}
                   strokeWidth={2.5}
                   fillOpacity={1}
                   fill="url(#scoreGradient)"
-                  dot={{ r: 3, fill: '#0284C7', strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: '#0284C7', stroke: '#FFFFFF', strokeWidth: 2 }}
+                  dot={{ r: 3, fill: chartColor, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: chartColor, stroke: isDark ? '#0F172A' : '#FFFFFF', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -223,8 +226,8 @@ export default function PerformanceDashboard({
             </div>
 
             {/* Technical Accuracy Score */}
-            <div className="p-4 rounded-xl bg-sky-50/70 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 mb-4">
-              <div className="text-xs font-semibold text-sky-900 dark:text-sky-300 uppercase tracking-wider mb-1">
+            <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 mb-4">
+              <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Average Technical Accuracy
               </div>
               <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
@@ -244,7 +247,7 @@ export default function PerformanceDashboard({
                 {interviewMetrics.trend.map((score, i) => (
                   <div key={i} className="flex flex-col items-center gap-1 flex-1">
                     <div
-                      className="w-full bg-sky-500 dark:bg-sky-400 rounded-t-md transition-all"
+                      className="w-full bg-zinc-900 dark:bg-slate-200 rounded-t-md transition-all"
                       style={{ height: `${(score / 100) * 48}px` }}
                     />
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{score}%</span>
@@ -259,7 +262,7 @@ export default function PerformanceDashboard({
             <button
               type="button"
               onClick={onLaunchInterview}
-              className="text-sky-600 dark:text-sky-400 hover:text-sky-800 font-semibold inline-flex items-center gap-1"
+              className="text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white font-semibold inline-flex items-center gap-1"
             >
               Start Drill →
             </button>
@@ -306,7 +309,7 @@ export default function PerformanceDashboard({
                   </p>
                 </div>
                 <div className={`mt-4 flex items-center justify-between text-xs font-semibold ${
-                  idx === 0 ? 'text-zinc-200 dark:text-slate-600' : 'text-sky-700 dark:text-sky-400'
+                  idx === 0 ? 'text-zinc-200 dark:text-slate-600' : 'text-slate-700 dark:text-slate-300'
                 }`}>
                   <span className="flex items-center gap-1">
                     <action.icon className="w-3.5 h-3.5" />
@@ -323,7 +326,7 @@ export default function PerformanceDashboard({
       {/* Block 4 — Transparent Formula Explanation Card */}
       <section className="w-full bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
-          <Info className="w-5 h-5 text-sky-600" />
+          <Info className="w-5 h-5 text-slate-700 dark:text-slate-300" />
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">Transparent Scoring Formula</h2>
         </div>
 
@@ -345,8 +348,8 @@ export default function PerformanceDashboard({
                 <div className="text-xl font-black text-slate-900 dark:text-slate-100">{verifiedSkillsScore}%</div>
                 <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(verifiedSkillsScore * 0.35).toFixed(1)} pts</div>
               </div>
-              <div className="p-3 rounded-lg bg-sky-50/60 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
-                <div className="text-xs font-bold text-sky-800 dark:text-sky-300 uppercase mb-1">ATS Keywords (40%)</div>
+              <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">ATS Keywords (40%)</div>
                 <div className="text-xl font-black text-slate-900 dark:text-slate-100">{atsScore}%</div>
                 <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(atsScore * 0.40).toFixed(1)} pts</div>
               </div>

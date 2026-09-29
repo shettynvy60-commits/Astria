@@ -8,8 +8,7 @@ import {
   ChevronDown, 
   ChevronUp, 
   Sparkles, 
-  CheckCircle2, 
-  Bot 
+  CheckCircle2
 } from 'lucide-react';
 
 export default function RoadmapView({
@@ -18,8 +17,7 @@ export default function RoadmapView({
   isLoading,
   targetRole,
   missingSkillsCount = 0,
-  partialSkillsCount = 0,
-  onOpenTutor
+  partialSkillsCount = 0
 }) {
   const [expandedModules, setExpandedModules] = useState({});
   const [activeInterviewToggles, setActiveInterviewToggles] = useState({});
@@ -124,6 +122,10 @@ export default function RoadmapView({
             <div className="grid grid-cols-1 gap-4">
               {milestone.modules?.map((mod) => {
                 const isExpanded = expandedModules[mod.id] !== false;
+                const practicalProject = mod.practical_project || {};
+                const projectTitle = practicalProject.project_title || practicalProject.title || `${mod.focus_skill || 'Skill'} Capstone`;
+                const projectDescription = practicalProject.deliverable_description || practicalProject.description || practicalProject.deliverable || 'Build and validate a production-grade implementation of this skill.';
+
                 return (
                   <div
                     key={mod.id}
@@ -143,20 +145,6 @@ export default function RoadmapView({
                         </h5>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-500">
-                        {onOpenTutor && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenTutor(mod.focus_skill, mod.title);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors shadow-2xs"
-                            title="Open Socratic AI Tutor Sandbox"
-                          >
-                            <Bot className="w-3.5 h-3.5 text-sky-600" />
-                            <span className="hidden sm:inline">AI Tutor</span>
-                          </button>
-                        )}
                         <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
                           {mod.difficulty}
                         </span>
@@ -190,12 +178,12 @@ export default function RoadmapView({
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5 uppercase tracking-wide">
                                 <Terminal className="w-3.5 h-3.5 text-sky-600" />
-                                Capstone: {mod.practical_project.project_title}
+                                Capstone: {projectTitle}
                               </span>
                               <span className="text-[10px] text-slate-500">Deliverable Verification</span>
                             </div>
                             <p className="text-xs text-slate-600 leading-relaxed">
-                              {mod.practical_project.deliverable_description}
+                              {projectDescription}
                             </p>
                           </div>
                         )}

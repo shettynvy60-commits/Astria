@@ -130,6 +130,7 @@ class TutorReply(BaseModel):
     explanation: str
     practical_tip: str
     mini_quiz: Optional[TutorQuiz] = None
+    source: str = "mock"
 
 
 # --- LLM Client Class ---
@@ -559,7 +560,9 @@ class LLMService:
         )
         raw_json = completion.choices[0].message.content or "{}"
         cleaned = clean_json_response(raw_json)
-        return TutorReply.model_validate(json.loads(cleaned))
+        reply = TutorReply.model_validate(json.loads(cleaned))
+        reply.source = "openai"
+        return reply
 
     async def _call_gemini_tutor(
         self,
@@ -583,7 +586,9 @@ class LLMService:
         res = await asyncio.to_thread(requests.post, url, json=payload, timeout=35)
         res.raise_for_status()
         text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-        return TutorReply.model_validate_json(clean_json_response(text))
+        reply = TutorReply.model_validate_json(clean_json_response(text))
+        reply.source = "gemini"
+        return reply
 
     def _generate_mock_tutor_reply(
         self,
@@ -613,7 +618,8 @@ class LLMService:
         return TutorReply(
             explanation=explanation,
             practical_tip=tip,
-            mini_quiz=quiz
+            mini_quiz=quiz,
+            source="mock"
         )
 
 

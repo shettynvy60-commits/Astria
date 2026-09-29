@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import WorkspaceScreen from './components/WorkspaceScreen';
 import AnalysisOverlay from './components/AnalysisOverlay';
@@ -12,6 +12,8 @@ import AITutorSandbox from './components/AITutorSandbox';
 import ResumeBuilder from './components/ResumeBuilder';
 import LoginPage from './components/LoginPage';
 import { UserProvider, useUser } from './context/UserContext';
+import { MessageCircle } from 'lucide-react';
+import RobotCharacter from './components/RobotCharacter';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -63,9 +65,8 @@ function AppCore() {
     isOpen: false, skillName: '', skillType: 'missing'
   });
 
-  const [tutorSession, setTutorSession] = useState({
-    isOpen: false, skill: 'System Design', moduleTitle: 'Core Architecture'
-  });
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const closeAiAssistant = useCallback(() => setIsAiAssistantOpen(false), []);
 
   const [readinessScore, setReadinessScore] = useState(() => {
     try { const s = localStorage.getItem('astria_readiness_score'); return s ? Number(s) : 0; } catch { return 0; }
@@ -271,6 +272,66 @@ function AppCore() {
     });
   };
 
+  const fallbackRoadmap = () => {
+    const partials = analysisResult?.match_result?.partial_skills || [];
+    const missings = analysisResult?.match_result?.missing_skills || [];
+    const skillsToTeach = [...partials, ...missings].slice(0, 4);
+
+    setRoadmapData({
+      target_role: targetRole,
+      pedagogical_summary: `Personalized ${skillsToTeach.length || 1}-week curriculum bridging your verified gaps for ${targetRole}.`,
+      total_weeks: Math.max(2, skillsToTeach.length || 2),
+      weekly_hours: 10,
+      milestones: (skillsToTeach.length ? skillsToTeach : [{ name: 'Core delivery fundamentals' }]).map((skill, i) => ({
+        week_number: i + 1,
+        milestone_title: `${(skill?.name || 'Core delivery fundamentals')} — ${skill?.status === 'PARTIAL' ? 'Reinforcement' : 'Foundations'}`,
+        goal_description: skill?.reasoning || `Build practical mastery of ${(skill?.name || 'core delivery fundamentals')} with hands-on deliverables.`,
+        modules: [{
+          id: `m${i + 1}`,
+          focus_skill: skill?.name || 'Core delivery fundamentals',
+          title: `${skill?.name || 'Core delivery fundamentals'} Core Architecture & Production Patterns`,
+          difficulty: i < 1 ? 'Intermediate' : 'Advanced',
+          estimated_hours: 5,
+          core_concepts: [`${skill?.name || 'Core delivery fundamentals'} fundamentals`, 'Production best practices', 'Testing & validation'],
+          practical_project: {
+            project_title: `${skill?.name || 'Core delivery fundamentals'} End-to-End Capstone`,
+            deliverable_description: `Build and deploy a production-grade ${(skill?.name || 'core delivery fundamentals')} implementation demonstrating mastery of the core concepts.`
+          }
+        }]
+      }))
+    });
+  };
+
+  const handleGenerateRoadmap = async () => {
+    setIsGeneratingRoadmap(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/generate-roadmap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_role: targetRole,
+          missing_skills: (analysisResult?.match_result?.missing_skills || []).map(skill => skill.name),
+          partial_skills: analysisResult?.match_result?.partial_skills || [],
+          matched_skills: (analysisResult?.match_result?.matched_skills || []).map(skill => skill.name),
+          target_timeline_weeks: 4
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRoadmapData(data);
+        return;
+      }
+
+      throw new Error('Roadmap generation failed');
+    } catch (error) {
+      console.warn('Falling back to local roadmap generator:', error);
+      fallbackRoadmap();
+    } finally {
+      setIsGeneratingRoadmap(false);
+    }
+  };
+
   const handleUpdateInterviewMetrics = ({ fillerRate, fillerCounts, technicalAccuracy }) => {
     setInterviewMetrics(prev => ({
       ...prev,
@@ -348,6 +409,8 @@ function AppCore() {
           <ResumeBuilder
             candidateName={user.fullName || ''}
             rawResumeText={rawResumeText}
+            targetRole={targetRole}
+            initialJobDescription={rawJobDescription}
           />
         )}
 
@@ -366,43 +429,11 @@ function AppCore() {
         {activeView === 'roadmap' && (
           <RoadmapView
             roadmap={roadmapData}
-            onGenerateRoadmap={async () => {
-              setIsGeneratingRoadmap(true);
-              setTimeout(() => {
-                const partials = analysisResult?.match_result?.partial_skills || [];
-                const missings = analysisResult?.match_result?.missing_skills || [];
-                const skillsToTeach = [...partials, ...missings].slice(0, 4);
-                setRoadmapData({
-                  target_role: targetRole,
-                  pedagogical_summary: `Personalized ${skillsToTeach.length}-week curriculum bridging your verified gaps for ${targetRole}.`,
-                  total_weeks: Math.max(2, skillsToTeach.length),
-                  weekly_hours: 10,
-                  milestones: skillsToTeach.map((skill, i) => ({
-                    week_number: i + 1,
-                    milestone_title: `${skill.name} — ${skill.status === 'PARTIAL' ? 'Reinforcement' : 'Foundations'}`,
-                    goal_description: skill.reasoning || `Build practical mastery of ${skill.name} with hands-on deliverables.`,
-                    modules: [{
-                      id: `m${i + 1}`,
-                      focus_skill: skill.name,
-                      title: `${skill.name} Core Architecture & Production Patterns`,
-                      difficulty: i < 1 ? 'Intermediate' : 'Advanced',
-                      estimated_hours: 5,
-                      core_concepts: [`${skill.name} fundamentals`, 'Production best practices', 'Testing & validation'],
-                      practical_project: {
-                        project_title: `${skill.name} End-to-End Capstone`,
-                        deliverable_description: `Build and deploy a production-grade ${skill.name} implementation demonstrating mastery of the core concepts.`
-                      }
-                    }]
-                  }))
-                });
-                setIsGeneratingRoadmap(false);
-              }, 600);
-            }}
+            onGenerateRoadmap={handleGenerateRoadmap}
             isLoading={isGeneratingRoadmap}
             targetRole={targetRole}
             missingSkillsCount={analysisResult?.match_result?.missing_skills?.length || 0}
             partialSkillsCount={analysisResult?.match_result?.partial_skills?.length || 0}
-            onOpenTutor={(skill, moduleTitle) => setTutorSession({ isOpen: true, skill, moduleTitle })}
           />
         )}
       </main>
@@ -419,12 +450,13 @@ function AppCore() {
         onMarkComplete={handleMarkSkillComplete}
       />
 
-      {/* Socratic AI Tutor Modal */}
+      {/* AI Resume Assistant Modal */}
       <AITutorSandbox
-        isOpen={tutorSession.isOpen}
-        skill={tutorSession.skill}
-        moduleTitle={tutorSession.moduleTitle}
-        onClose={() => setTutorSession(prev => ({ ...prev, isOpen: false }))}
+        isOpen={isAiAssistantOpen}
+        targetRole={targetRole}
+        resumeText={rawResumeText}
+        jobDescription={rawJobDescription}
+        onClose={closeAiAssistant}
       />
 
       {/* Footer */}
@@ -436,6 +468,29 @@ function AppCore() {
           </div>
         </div>
       </footer>
+
+      {!isAiAssistantOpen && (
+        <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2">
+          <div className="flex items-end justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAiAssistantOpen(true)}
+              className="relative max-w-[230px] rounded-2xl rounded-br-md border border-slate-300 bg-white px-3.5 py-2.5 text-left text-xs leading-relaxed text-slate-800 shadow-lg transition-transform hover:-translate-y-0.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              aria-label="Hi, need help with your resume? Open AI tools"
+              aria-haspopup="dialog"
+            >
+              <span className="block"><span className="font-bold">Hi!</span>{' '}Need a hand with your resume?</span>
+              <span className="mt-1.5 inline-flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
+                <MessageCircle className="h-3.5 w-3.5" /> Open AI Tools
+              </span>
+              <span aria-hidden="true" className="absolute -bottom-1 right-3 h-2.5 w-2.5 rotate-45 border-b border-r border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900" />
+            </button>
+            <div className="ai-tools-robot-frame" aria-label="AI tools robot waving hello">
+              <RobotCharacter className="ai-tools-robot-character robot-guide--wave" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

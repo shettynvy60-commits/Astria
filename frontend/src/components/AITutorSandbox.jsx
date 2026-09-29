@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import AIResumeAssistant from './AIResumeAssistant';
+import RobotCharacter from './RobotCharacter';
 import { 
   Bot, 
   Send, 
@@ -16,13 +19,34 @@ import {
 
 const API_BASE = 'http://localhost:8000';
 
+function createFallbackQuiz(skill, userQuestion) {
+  const topic = userQuestion.trim().replace(/[?!.]+$/, '').slice(0, 110);
+  return {
+    question: `For your question about ${skill}${topic ? ` (${topic})` : ''}, what is the strongest next step?`,
+    options: [
+      'Define expected behavior, test edge cases, and measure under realistic conditions',
+      'Assume the happy path represents production behavior',
+      'Increase resource limits before identifying the bottleneck',
+      'Remove failure handling so the system has fewer branches'
+    ],
+    correct_option_index: 0,
+    explanation: 'A reliable engineering answer states the expected behavior, checks failure and boundary cases, and validates the result with realistic measurements.'
+  };
+}
+
 export default function AITutorSandbox({
   skill = 'PostgreSQL',
   moduleTitle = 'Core Architecture & Indexing',
   isOpen = false,
   onClose,
-  contextInfo = ''
+  contextInfo = '',
+  targetRole = '',
+  resumeText = '',
+  jobDescription = ''
 }) {
+  const [guideMessage, setGuideMessage] = useState('Choose an AI tool, add your details, then run it to get a result. I’ll offer tips as you go.');
+  const [topRobotTipIndex, setTopRobotTipIndex] = useState(0);
+  const [robotFlight, setRobotFlight] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,8 +54,68 @@ export default function AITutorSandbox({
   const [selectedOption, setSelectedOption] = useState(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const messagesEndRef = useRef(null);
+  const flyingRobotRef = useRef(null);
+  const closeDrawerButtonRef = useRef(null);
+  const topRobotTips = [
+    'Choose a tool, add your details, then run it to get a result.',
+    'Keep every resume detail accurate and based on your own experience.',
+    'Switch tools from the left menu; your selected tool is marked by the moving robot.'
+  ];
+  const updateGuide = (message) => {
+    setGuideMessage(message);
+  };
+  const handleTopRobotClick = () => {
+    const nextIndex = (topRobotTipIndex + 1) % topRobotTips.length;
+    setTopRobotTipIndex(nextIndex);
+    updateGuide(topRobotTips[nextIndex]);
+  };
+  const handleRobotFly = (sourceRect, targetRect) => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (!sourceRect || !targetRect) return;
 
-  // Initialize initial welcome message and default diagnostic quiz when skill changes
+    const sourceX = sourceRect.left - 15.12;
+    const sourceY = sourceRect.top - 19.44;
+    const destinationX = targetRect.right - 40 - 15.12;
+    const destinationY = targetRect.top + (targetRect.height - 36) / 2 - 19.44;
+    setRobotFlight({
+      id: Date.now(),
+      left: sourceX,
+      top: sourceY,
+      deltaX: destinationX - sourceX,
+      deltaY: destinationY - sourceY
+    });
+  };
+
+  useEffect(() => {
+    if (!robotFlight || !flyingRobotRef.current) return undefined;
+    const { deltaX, deltaY } = robotFlight;
+    const animation = flyingRobotRef.current.animate([
+      { transform: 'translate3d(0, 0, 0) scale(0.46) rotate(0deg)', opacity: 1, offset: 0 },
+      { transform: `translate3d(${deltaX * 0.2}px, ${deltaY * 0.2 - 72}px, 0) scale(0.62) rotate(-8deg)`, opacity: 1, offset: 0.2 },
+      { transform: `translate3d(${deltaX * 0.5}px, ${deltaY * 0.5 - 112}px, 0) scale(0.78) rotate(6deg)`, opacity: 1, offset: 0.5 },
+      { transform: `translate3d(${deltaX * 0.8}px, ${deltaY * 0.8 - 72}px, 0) scale(0.62) rotate(-4deg)`, opacity: 1, offset: 0.8 },
+      { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(0.46) rotate(0deg)`, opacity: 1, offset: 1 }
+    ], { duration: 1400, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' });
+    animation.onfinish = () => setRobotFlight(null);
+    return () => animation.cancel();
+  }, [robotFlight]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    closeDrawerButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  // Initialize a clean session whenever the learning focus changes.
   useEffect(() => {
     if (skill) {
       setMessages([
@@ -42,19 +126,10 @@ export default function AITutorSandbox({
           tip: `Focus on production trade-offs (e.g. latency vs consistency, connection limits) rather than basic syntax.`
         }
       ]);
-      setActiveQuiz({
-        question: `In high-throughput environments with ${skill}, what is the primary consideration when tuning connection pool limits?`,
-        options: [
-          'Matching pool size to active CPU cores and disk I/O limits',
-          'Setting pool size to maximum possible (e.g. 5,000) to avoid rejection',
-          'Disabling pool timeouts and query retries entirely',
-          'Using a single shared singleton connection across all worker threads'
-        ],
-        correct_option_index: 0,
-        explanation: 'Oversized connection pools cause context switching thrash and memory pressure. Sizing pools to available CPU threads and hardware throughput maximizes query speed.'
-      });
+      setActiveQuiz(null);
       setSelectedOption(null);
       setQuizSubmitted(false);
+      setInputText('');
     }
   }, [skill]);
 
@@ -68,6 +143,17 @@ export default function AITutorSandbox({
   const handleSendMessage = async (textToSend) => {
     const query = textToSend || inputText;
     if (!query.trim() || isLoading) return;
+
+    const conversationHistory = messages
+      .filter((message) => message.id !== 'welcome')
+      .slice(-8)
+      .map((message) => `${message.sender === 'user' ? 'Learner' : 'Tutor'}: ${message.text}`)
+      .join('\n');
+    const conversationContext = [
+      moduleTitle,
+      contextInfo,
+      conversationHistory && `Recent conversation:\n${conversationHistory}`
+    ].filter(Boolean).join('\n\n').slice(-10000);
 
     const userMsg = {
       id: `u-${Date.now()}`,
@@ -86,7 +172,7 @@ export default function AITutorSandbox({
         body: JSON.stringify({
           skill: skill,
           user_message: query,
-          context: `${moduleTitle} - ${contextInfo}`
+          context: conversationContext
         })
       });
 
@@ -99,7 +185,8 @@ export default function AITutorSandbox({
         id: `t-${Date.now()}`,
         sender: 'tutor',
         text: data.explanation || 'Great question! Let us examine how this scales in production.',
-        tip: data.practical_tip
+        tip: data.practical_tip,
+        source: data.source
       };
 
       setMessages((prev) => [...prev, tutorMsg]);
@@ -108,17 +195,23 @@ export default function AITutorSandbox({
         setActiveQuiz(data.mini_quiz);
         setSelectedOption(null);
         setQuizSubmitted(false);
+      } else {
+        setActiveQuiz(createFallbackQuiz(skill, query));
+        setSelectedOption(null);
+        setQuizSubmitted(false);
       }
     } catch (err) {
       console.warn('Tutor API offline or error; providing local Socratic pedagogical fallback:', err);
-      // Fallback pedagogical response
       const fallbackMsg = {
         id: `t-${Date.now()}`,
         sender: 'tutor',
-        text: `In a production cluster utilizing **${skill}**, the critical consideration is isolating failure domains and avoiding cascading saturation. When evaluating "${query}", always quantify the trade-off between read latency, write amplification, and recovery time.`,
-        tip: `In technical rounds, always explain how you would measure this using Prometheus metrics or distributed tracing.`
+        text: `I couldn't reach the tutor service, so this is a local practice response. For your question about ${skill}, identify the expected behavior, consider failure cases, and explain how you would verify the result.`,
+        tip: 'Try sending your question again when the tutor service is available; follow-up context is kept within this session.'
       };
       setMessages((prev) => [...prev, fallbackMsg]);
+      setActiveQuiz(createFallbackQuiz(skill, query));
+      setSelectedOption(null);
+      setQuizSubmitted(false);
     } finally {
       setIsLoading(false);
     }
@@ -136,46 +229,50 @@ export default function AITutorSandbox({
     `What are the most common interview traps regarding ${skill}?`,
     `Give me a production code design exercise for ${skill}.`
   ];
+  const hasAskedQuestion = messages.some((message) => message.sender === 'user');
+  const guideStep = isLoading ? 1 : quizSubmitted ? 2 : hasAskedQuestion ? 1 : 0;
+  const guideText = isLoading
+    ? 'I’m working through your question. Your next step will appear here.'
+    : quizSubmitted
+      ? 'Review the explanation, then ask a follow-up or reset for another round.'
+      : hasAskedQuestion
+        ? 'Read the tutor’s explanation, then choose an answer in the quiz panel.'
+        : 'Tap a starter prompt below or type your own question. Then try the quiz to check your understanding.';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-      <div className="glass-panel w-full max-w-4xl h-[85vh] rounded-2xl border border-brand-500/30 flex flex-col shadow-2xl overflow-hidden bg-slate-900/95">
+    <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label="Close AI tools"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ai-tools-title"
+        className="ai-tools-drawer glass-panel relative z-[61] flex h-[100dvh] w-screen min-w-0 max-w-[76rem] flex-col overflow-hidden border-l border-y border-brand-500/30 bg-slate-900/95 shadow-2xl sm:w-[92vw] sm:rounded-l-2xl"
+      >
         
         {/* Header Bar */}
-        <div className="p-4 px-6 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="p-3 sm:p-4 sm:px-6 border-b border-slate-800 bg-slate-950/60 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-950/90 border border-brand-500/40 flex items-center justify-center text-brand-400">
               <Bot className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-100">
-                  AI Socratic Tutor Sandbox
-                </h3>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-950 text-brand-300 border border-brand-500/30 font-mono">
-                  {skill}
-                </span>
+                <h3 id="ai-tools-title" className="truncate text-sm sm:text-base font-bold text-slate-100">AI Resume Assistant</h3>
               </div>
-              <p className="text-xs text-slate-400">
-                Module: {moduleTitle}
+              <p className="truncate text-xs text-slate-400">
+                Writing, grammar, ATS matching, and resume tools
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
             <button
-              type="button"
-              onClick={() => {
-                setMessages([messages[0]]);
-                setSelectedOption(null);
-                setQuizSubmitted(false);
-              }}
-              className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-              title="Reset Conversation"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-            <button
+              ref={closeDrawerButtonRef}
               type="button"
               onClick={onClose}
               className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
@@ -187,13 +284,48 @@ export default function AITutorSandbox({
         </div>
 
         {/* Main Content: Split Chat + Diagnostic Quiz */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+  <div className="hidden">
           
           {/* Left Column: Chat Conversation (7 cols) */}
-          <div className="lg:col-span-7 flex flex-col h-full border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-slate-950/40">
+          <div className="lg:col-span-7 min-w-0 min-h-[55vh] lg:min-h-0 lg:h-full flex flex-col border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-slate-950/40">
             
             {/* Messages Scroll Area */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4">
+            <div className="tutor-popup-scrollbar flex-1 min-h-0 p-4 overflow-y-auto space-y-4">
+              <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/80 p-3" aria-live="polite">
+                <div className="robot-guide" aria-hidden="true">
+                  <span className="robot-guide__antenna" />
+                  <span className="robot-guide__antenna-light" />
+                  <div className="robot-guide__head">
+                    <div className="robot-guide__screen">
+                      <span className="robot-guide__eye" />
+                      <span className="robot-guide__eye" />
+                    </div>
+                  </div>
+                  <span className="robot-guide__neck" />
+                  <span className="robot-guide__arm robot-guide__arm--left" />
+                  <div className="robot-guide__body">
+                    <span className="robot-guide__chest-light" />
+                  </div>
+                  <span className="robot-guide__arm robot-guide__arm--right" />
+                  <span className="robot-guide__leg robot-guide__leg--left" />
+                  <span className="robot-guide__leg robot-guide__leg--right" />
+                  <span className="robot-guide__shadow" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <p className="text-xs font-bold text-slate-100">Your learning guide</p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400" aria-label={`Step ${guideStep + 1} of 3`}>
+                      {['Ask', 'Explore', 'Check'].map((step, index) => (
+                        <span key={step} className={`rounded-full px-2 py-0.5 ${index === guideStep ? 'bg-slate-200 text-slate-900' : 'bg-slate-800 text-slate-400'}`}>
+                          {step}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-300">{guideText}</p>
+                </div>
+              </div>
+
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -206,6 +338,11 @@ export default function AITutorSandbox({
                         : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none shadow-md'
                     }`}
                   >
+                    {msg.source && (
+                      <span className="block text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                        {msg.source === 'mock' ? 'Offline practice' : `${msg.source} AI`}
+                      </span>
+                    )}
                     <div className="whitespace-pre-wrap">{msg.text}</div>
                     
                     {msg.tip && (
@@ -276,7 +413,7 @@ export default function AITutorSandbox({
           </div>
 
           {/* Right Column: Diagnostic Quiz & Key Takeaways (5 cols) */}
-          <div className="lg:col-span-5 p-5 flex flex-col justify-between overflow-y-auto space-y-4 bg-slate-900/40">
+          <div className="tutor-popup-scrollbar lg:col-span-5 min-w-0 min-h-[45vh] lg:min-h-0 p-5 flex flex-col justify-between overflow-y-auto space-y-4 bg-slate-900/40">
             {activeQuiz ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -321,7 +458,7 @@ export default function AITutorSandbox({
                           <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-950 text-slate-400 shrink-0">
                             {String.fromCharCode(65 + optIdx)}
                           </span>
-                          <span className="flex-1">{option}</span>
+                          <span className="min-w-0 flex-1 break-words">{option}</span>
                           {quizSubmitted && isCorrect && (
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                           )}
@@ -371,7 +508,47 @@ export default function AITutorSandbox({
             </div>
           </div>
         </div>
+
+        <div className="tutor-popup-scrollbar flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900/80 p-3" aria-live="polite">
+            <button
+              type="button"
+              onClick={handleTopRobotClick}
+              className="robot-guide-button"
+              aria-label="Ask the AI guide for another tip"
+              title="Click for another AI tool tip"
+            >
+              <RobotCharacter className="robot-guide--wave" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-100">AI guide</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">{guideMessage}</p>
+            </div>
+          </div>
+          <AIResumeAssistant
+            targetRole={targetRole}
+            resumeText={resumeText}
+            jobDescription={jobDescription}
+            onGuideChange={updateGuide}
+            onRobotFly={handleRobotFly}
+            isRobotFlying={Boolean(robotFlight)}
+          />
+        </div>
       </div>
+      {robotFlight && (
+        createPortal(
+          <div
+            key={robotFlight.id}
+            ref={flyingRobotRef}
+            className="robot-flight"
+            style={{ left: robotFlight.left, top: robotFlight.top }}
+            aria-hidden="true"
+          >
+            <RobotCharacter />
+          </div>,
+          document.body
+        )
+      )}
     </div>
   );
 }

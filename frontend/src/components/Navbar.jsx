@@ -76,7 +76,7 @@ export default function Navbar({
               <span className="text-xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
                 Astria
               </span>
-              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              <span className="hidden sm:inline text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                 Co-Pilot
               </span>
             </div>
@@ -168,7 +168,7 @@ export default function Navbar({
         </nav>
 
         {/* Right: Streak + Theme Toggle + Profile */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
           {/* Streak Counter Badge */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-300 text-xs font-semibold">
             <Flame className="w-3.5 h-3.5 text-orange-500" />

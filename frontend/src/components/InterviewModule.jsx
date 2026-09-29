@@ -82,7 +82,7 @@ export default function InterviewModule({ targetRole = 'Software Engineer', onBa
       const matchedKeywordsCount = question.targetKeywords.filter(kw => lowerAnswer.includes(kw.toLowerCase())).length;
       const keywordRatio = matchedKeywordsCount / question.targetKeywords.length;
       const rawScore = Math.min(100, Math.round(keywordRatio * 70 + (totalWords > 25 ? 25 : totalWords) - Math.min(15, fillerCount * 2)));
-      const accuracyScore = Math.max(45, Math.min(98, rawScore));
+      const accuracyScore = Math.max(0, Math.min(98, rawScore));
       const result = {
         accuracyScore,
         fillerCount,

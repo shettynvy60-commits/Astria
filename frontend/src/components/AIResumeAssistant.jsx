@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import RobotCharacter from './RobotCharacter';
 import {
   ArrowRight,
   Check,
@@ -166,7 +167,7 @@ async function scrubUserValue(value) {
   return scrubbed.sanitized_text;
 }
 
-export default function AIResumeAssistant({ targetRole, resumeText, jobDescription }) {
+export default function AIResumeAssistant({ targetRole, resumeText, jobDescription, onGuideChange = () => {}, onRobotFly = () => {}, isRobotFlying = false }) {
   const [activeToolId, setActiveToolId] = useState('bullets');
   const [values, setValues] = useState(() => initialValues(tools[0], targetRole, resumeText, jobDescription));
   const [result, setResult] = useState(null);
@@ -176,11 +177,16 @@ export default function AIResumeAssistant({ targetRole, resumeText, jobDescripti
   const activeTool = tools.find((tool) => tool.id === activeToolId) || tools[0];
   const categories = [...new Set(tools.map((tool) => tool.category))];
 
-  const selectTool = (tool) => {
+  const selectTool = (tool, optionElement) => {
+    const currentMarker = document.querySelector('.robot-option-marker');
+    const sourceRect = currentMarker?.getBoundingClientRect();
+    const targetRect = optionElement?.getBoundingClientRect();
     setActiveToolId(tool.id);
     setValues(initialValues(tool, targetRole, resumeText, jobDescription));
     setResult(null);
     setError('');
+    onGuideChange(`${tool.label} selected. ${tool.description}`);
+    if (tool.id !== activeToolId && sourceRect && targetRect) onRobotFly(sourceRect, targetRect);
   };
 
   const makePayload = () => {
@@ -200,6 +206,7 @@ export default function AIResumeAssistant({ targetRole, resumeText, jobDescripti
     setLoading(true);
     setError('');
     setResult(null);
+    onGuideChange(`Working on ${activeTool.label.toLowerCase()}. I’ll let you know when your result is ready.`);
     try {
       const payload = makePayload();
       for (const [key, value] of Object.entries(payload)) {
@@ -213,8 +220,12 @@ export default function AIResumeAssistant({ targetRole, resumeText, jobDescripti
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || `Request failed (${response.status})`);
       setResult(data);
+      onGuideChange(data.source === 'gemini'
+        ? 'Your result is ready. Review the suggestions and keep only what matches your experience.'
+        : 'Your offline result is ready. Review it carefully and keep only details that are accurate.');
     } catch (requestError) {
       setError(requestError.message || 'Could not reach the AI service. Check the backend connection and try again.');
+      onGuideChange('That request did not complete. Check the error in the result panel, then retry.');
     } finally {
       setLoading(false);
     }
@@ -245,8 +256,13 @@ export default function AIResumeAssistant({ targetRole, resumeText, jobDescripti
           {categories.map((category) => <div key={category}>
             <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase text-slate-500">{category}</h2>
             <div className="space-y-1">{tools.filter((tool) => tool.category === category).map((tool) => (
-              <button key={tool.id} type="button" onClick={() => selectTool(tool)} className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${activeTool.id === tool.id ? 'border-cyan-500/40 bg-cyan-950/40 text-cyan-100' : 'border-transparent text-slate-400 hover:border-slate-800 hover:bg-slate-900/70 hover:text-slate-100'}`}>
-                {tool.label}
+              <button key={tool.id} type="button" disabled={isRobotFlying} onClick={(event) => selectTool(tool, event.currentTarget)} className={`flex min-h-[46px] w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:cursor-wait ${activeTool.id === tool.id ? 'border-cyan-500/40 bg-cyan-950/40 text-cyan-100' : 'border-transparent text-slate-400 hover:border-slate-800 hover:bg-slate-900/70 hover:text-slate-100'}`}>
+                <span className="min-w-0 flex-1">{tool.label}</span>
+                {activeTool.id === tool.id && !isRobotFlying && (
+                  <span key={tool.id} className="robot-option-marker" aria-hidden="true">
+                    <RobotCharacter className="robot-guide--option robot-guide--wave" />
+                  </span>
+                )}
               </button>
             ))}</div>
           </div>)}
@@ -263,13 +279,13 @@ export default function AIResumeAssistant({ targetRole, resumeText, jobDescripti
               {activeTool.fields.map((field) => <label key={field.name} className="block space-y-1.5">
                 <span className="text-xs font-medium text-slate-300">{field.label}{field.required ? ' *' : ''}</span>
                 {field.type === 'textarea' ? (
-                  <textarea required={field.required} rows={field.rows} value={values[field.name]} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))} className="glass-input w-full resize-y rounded-lg px-3 py-2.5 text-sm" />
+                  <textarea required={field.required} rows={field.rows} value={values[field.name]} onFocus={() => onGuideChange(`Add accurate details for ${field.label.toLowerCase()}. I can help with wording, but keep the facts yours.`)} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))} className="glass-input w-full resize-y rounded-lg px-3 py-2.5 text-sm" />
                 ) : field.type === 'select' ? (
-                  <select value={values[field.name]} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))} className="glass-input w-full rounded-lg px-3 py-2.5 text-sm">
+                  <select value={values[field.name]} onFocus={() => onGuideChange(`Choose the option that best describes your current experience.`)} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))} className="glass-input w-full rounded-lg px-3 py-2.5 text-sm">
                     {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 ) : (
-                  <input required={field.required} type={field.type === 'number' ? 'number' : 'text'} min={field.min} max={field.max} placeholder={field.placeholder} value={values[field.name]} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))} className="glass-input w-full rounded-lg px-3 py-2.5 text-sm" />
+                  <input required={field.required} type={field.type === 'number' ? 'number' : 'text'} min={field.min} max={field.max} placeholder={field.placeholder} value={values[field.name]} onFocus={() => onGuideChange(`Add accurate details for ${field.label.toLowerCase()}.`)} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))} className="glass-input w-full rounded-lg px-3 py-2.5 text-sm" />
                 )}
               </label>)}
             </div>

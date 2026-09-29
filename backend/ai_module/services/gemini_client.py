@@ -1,6 +1,8 @@
 import json
 import logging
 import re
+from typing import Any, Dict, Optional
+
 try:
     from google import genai
     from google.genai import types
