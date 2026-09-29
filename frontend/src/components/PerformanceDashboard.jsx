@@ -30,23 +30,15 @@ import {
 export default function PerformanceDashboard({
   candidateName = '',
   targetRole = 'Senior Software Engineer',
-  readinessScore = 78,
-  previousScore = 64,
+  readinessScore = 0,
+  previousScore = 0,
   interviewMetrics = {
-    fillerRate: 2.1,
-    fillerReductionPercent: 34,
-    fillerCounts: {
-      um: 3,
-      uh: 2,
-      like: 4,
-      'you know': 1,
-      basically: 2,
-      actually: 1,
-    },
-    technicalAccuracy: 86,
-    sessionsCount: 4,
-    trend: [62, 68, 74, 86]
+    technicalAccuracy: 0,
+    sessionsCount: 0,
+    trend: []
   },
+  missingSkills = [],
+  partialSkills = [],
   onStartAction,
   onLaunchInterview,
   onDownloadResume,
@@ -54,48 +46,41 @@ export default function PerformanceDashboard({
 }) {
   const scoreDelta = readinessScore - previousScore;
 
-  // Recharts data for smooth curved area chart
-  const progressionData = [
-    { day: 'Day 1', score: 58 },
-    { day: 'Day 2', score: 60 },
-    { day: 'Day 3', score: 61 },
-    { day: 'Day 4', score: 63 },
-    { day: 'Day 5', score: 64 },
-    { day: 'Day 7', score: 68 },
-    { day: 'Day 10', score: 72 },
-    { day: 'Day 14', score: readinessScore },
-  ];
+  // Chart: session trend from real interview data only
+  const progressionData = interviewMetrics.trend.length > 0
+    ? interviewMetrics.trend.map((score, i) => ({ day: `Session ${i + 1}`, score }))
+    : [{ day: 'No sessions yet', score: 0 }];
 
-  // Breakdown subcategories matching the formula
-  const categories = [
-    { name: 'Verified Skills', score: 88, weight: '35%', color: 'bg-emerald-500' },
-    { name: 'ATS Keyword Alignment', score: 76, weight: '40%', color: 'bg-sky-500' },
-    { name: 'Interview Fluency', score: 82, weight: '25%', color: 'bg-amber-500' },
-  ];
+  // Score breakdown: computed dynamically from the actual readiness score
+  // Technical accuracy drives Interview Fluency, overall score drives the rest
+  const technicalAccuracy = interviewMetrics.technicalAccuracy || 0;
+  const verifiedSkillsScore = readinessScore > 0 ? Math.min(100, Math.round(readinessScore * 1.1)) : 0;
+  const atsScore = readinessScore > 0 ? readinessScore : 0;
+  const categories = readinessScore > 0 ? [
+    { name: 'Verified Skills', score: verifiedSkillsScore, weight: '35%', color: 'bg-emerald-500' },
+    { name: 'ATS Keyword Alignment', score: atsScore, weight: '40%', color: 'bg-sky-500' },
+    { name: 'Interview Fluency', score: technicalAccuracy || Math.round(readinessScore * 0.9), weight: '25%', color: 'bg-amber-500' },
+  ] : [];
 
-  // Skill-focused next actions (NOT resume edits)
+  // Next Best Actions: derived purely from AI-returned missing + partial skills
+  const actionIcons = [Code2, BookOpen, GitBranch, Layers];
   const skillActions = [
-    {
-      title: 'Complete REST API Capstone Mini-Project',
-      desc: 'Build a production-grade REST API with OpenAPI spec, rate limiting, and authentication',
-      impact: '+8% ATS Match',
-      icon: Code2,
-      priority: 'highest'
-    },
-    {
-      title: 'Practice 5 DSA Questions (Arrays & Trees)',
-      desc: 'LeetCode-style problems on binary search trees, two-pointer arrays, and hash maps',
-      impact: '+3% Skills',
-      icon: BookOpen,
-      priority: 'high'
-    },
-    {
-      title: 'Master Git Rebase Workflow',
-      desc: 'Interactive rebase, squashing commits, cherry-pick, and conflict resolution patterns',
-      impact: '+2% Skills',
-      icon: GitBranch,
-      priority: 'medium'
-    }
+    ...missingSkills.slice(0, 2).map((skill, i) => ({
+      title: `Bridge Gap: ${skill.name}`,
+      desc: skill.reasoning || `Required by your target role — not yet verified in your profile.`,
+      impact: '+Skills',
+      icon: actionIcons[i] || Code2,
+      priority: 'highest',
+      skillName: skill.name,
+    })),
+    ...partialSkills.slice(0, 1).map((skill, i) => ({
+      title: `Reinforce: ${skill.name}`,
+      desc: skill.reasoning || `Partially matched — strengthening this skill will boost your ATS score.`,
+      impact: '+ATS Match',
+      icon: actionIcons[2 + i] || BookOpen,
+      priority: 'high',
+      skillName: skill.name,
+    })),
   ];
 
   return (
@@ -293,39 +278,45 @@ export default function PerformanceDashboard({
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {skillActions.map((action, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={idx === 0 ? onStartAction : idx === 1 ? onStartAction : onStartAction}
-              className={`p-4 rounded-xl border-2 transition-all text-left shadow-sm flex flex-col justify-between hover:shadow-md ${
-                idx === 0
-                  ? 'border-zinc-900 dark:border-slate-200 bg-zinc-900 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-white'
-                  : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'
-              }`}
-            >
-              <div>
-                <div className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
-                  idx === 0 ? 'text-zinc-300 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'
-                }`}>
-                  {idx === 0 ? 'Highest Impact' : idx === 1 ? 'Practice' : 'Skill Gap'}
+          {skillActions.length === 0 ? (
+            <div className="col-span-3 py-8 text-center text-slate-400 dark:text-slate-600 text-sm">
+              Run the gap analysis first — next best actions will appear here based on your actual skill gaps.
+            </div>
+          ) : (
+            skillActions.map((action, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onStartAction(action.skillName)}
+                className={`p-4 rounded-xl border-2 transition-all text-left shadow-sm flex flex-col justify-between hover:shadow-md ${
+                  idx === 0
+                    ? 'border-zinc-900 dark:border-slate-200 bg-zinc-900 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-zinc-800 dark:hover:bg-white'
+                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                <div>
+                  <div className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                    idx === 0 ? 'text-zinc-300 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'
+                  }`}>
+                    {idx === 0 ? 'Highest Impact' : idx === 1 ? 'High Priority' : 'Skill Gap'}
+                  </div>
+                  <div className={`text-sm font-bold ${idx === 0 ? '' : 'text-slate-900 dark:text-slate-100'}`}>{action.title}</div>
+                  <p className={`text-xs mt-1 ${idx === 0 ? 'text-zinc-300 dark:text-slate-500' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {action.desc}
+                  </p>
                 </div>
-                <div className={`text-sm font-bold ${idx === 0 ? '' : 'text-slate-900 dark:text-slate-100'}`}>{action.title}</div>
-                <p className={`text-xs mt-1 ${idx === 0 ? 'text-zinc-300 dark:text-slate-500' : 'text-slate-600 dark:text-slate-400'}`}>
-                  {action.desc}
-                </p>
-              </div>
-              <div className={`mt-4 flex items-center justify-between text-xs font-semibold ${
-                idx === 0 ? 'text-zinc-200 dark:text-slate-600' : 'text-sky-700 dark:text-sky-400'
-              }`}>
-                <span className="flex items-center gap-1">
-                  <action.icon className="w-3.5 h-3.5" />
-                  <span>Start</span>
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 dark:bg-slate-900/20 text-[10px]">{action.impact}</span>
-              </div>
-            </button>
-          ))}
+                <div className={`mt-4 flex items-center justify-between text-xs font-semibold ${
+                  idx === 0 ? 'text-zinc-200 dark:text-slate-600' : 'text-sky-700 dark:text-sky-400'
+                }`}>
+                  <span className="flex items-center gap-1">
+                    <action.icon className="w-3.5 h-3.5" />
+                    <span>Open Masterclass</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/10 dark:bg-slate-900/20 text-[10px]">{action.impact}</span>
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </section>
 
@@ -343,26 +334,37 @@ export default function PerformanceDashboard({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-3 rounded-lg bg-emerald-50/60 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-            <div className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase mb-1">Verified Skills (35%)</div>
-            <div className="text-xl font-black text-slate-900 dark:text-slate-100">88%</div>
-            <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(88 * 0.35).toFixed(1)} pts</div>
-          </div>
-          <div className="p-3 rounded-lg bg-sky-50/60 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
-            <div className="text-xs font-bold text-sky-800 dark:text-sky-300 uppercase mb-1">ATS Keywords (40%)</div>
-            <div className="text-xl font-black text-slate-900 dark:text-slate-100">76%</div>
-            <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(76 * 0.40).toFixed(1)} pts</div>
-          </div>
-          <div className="p-3 rounded-lg bg-amber-50/60 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-            <div className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase mb-1">Interview Fluency (25%)</div>
-            <div className="text-xl font-black text-slate-900 dark:text-slate-100">82%</div>
-            <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(82 * 0.25).toFixed(1)} pts</div>
-          </div>
+          {categories.length === 0 ? (
+            <div className="col-span-3 py-6 text-center text-slate-400 dark:text-slate-600 text-sm">
+              Run the gap analysis to see your score breakdown.
+            </div>
+          ) : (
+            <>
+              <div className="p-3 rounded-lg bg-emerald-50/60 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                <div className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase mb-1">Verified Skills (35%)</div>
+                <div className="text-xl font-black text-slate-900 dark:text-slate-100">{verifiedSkillsScore}%</div>
+                <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(verifiedSkillsScore * 0.35).toFixed(1)} pts</div>
+              </div>
+              <div className="p-3 rounded-lg bg-sky-50/60 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
+                <div className="text-xs font-bold text-sky-800 dark:text-sky-300 uppercase mb-1">ATS Keywords (40%)</div>
+                <div className="text-xl font-black text-slate-900 dark:text-slate-100">{atsScore}%</div>
+                <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {(atsScore * 0.40).toFixed(1)} pts</div>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-50/60 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                <div className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase mb-1">Interview Fluency (25%)</div>
+                <div className="text-xl font-black text-slate-900 dark:text-slate-100">{technicalAccuracy || Math.round(readinessScore * 0.9)}%</div>
+                <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Contribution: {((technicalAccuracy || Math.round(readinessScore * 0.9)) * 0.25).toFixed(1)} pts</div>
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="mt-4 p-3 rounded-lg bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400">
-          <strong className="text-slate-800 dark:text-slate-200">Delta Breakdown:</strong> Completing the REST API Capstone Mini-Project adds +8% to ATS Keyword Alignment (76% → 84%), boosting overall readiness from {readinessScore}% to ~{Math.min(100, readinessScore + 6)}% (+6% net gain).
-        </div>
+        {missingSkills.length > 0 && (
+          <div className="mt-4 p-3 rounded-lg bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400">
+            <strong className="text-slate-800 dark:text-slate-200">Top Gap to Close:</strong>{' '}
+            Bridging <em>{missingSkills[0]?.name}</em> can significantly raise your ATS keyword score and overall readiness.
+          </div>
+        )}
       </section>
     </div>
   );

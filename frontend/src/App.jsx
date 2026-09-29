@@ -104,35 +104,55 @@ function AppCore() {
     try { localStorage.setItem('astria_interview_metrics', JSON.stringify(interviewMetrics)); } catch {}
   }, [interviewMetrics]);
 
-  const fallbackLocalAnalysis = (jd = '', strengths = '', resume = '') => {
-    const jdLower = jd.toLowerCase();
-    const resumeLower = (resume + ' ' + strengths).toLowerCase();
+  const [analysisError, setAnalysisError] = useState('');
 
-    // Dynamically derive skills from JD keywords
-    const allRequiredKeywords = jdLower.match(/\b(python|javascript|typescript|java|react|vue|angular|node|fastapi|django|flask|spring|aws|gcp|azure|kubernetes|docker|kafka|redis|postgresql|mysql|mongodb|graphql|rest|sql|git|ci\/cd|terraform|ansible|linux|bash)\b/g) || ['system design', 'api design', 'databases'];
-    const uniqueReqs = [...new Set(allRequiredKeywords)];
+  // Pure text-extraction fallback: only uses what the user actually typed.
+  // No hardcoded skill names are ever injected.
+  const localTextAnalysis = (jd = '', strengths = '', resume = '') => {
+    const jdText = jd.trim();
+    const resumeText = (resume + ' ' + strengths).trim();
+
+    if (!jdText) {
+      setAnalysisError('Job description is required to run the gap analysis.');
+      return;
+    }
+
+    // Extract every meaningful tech word from JD (2+ chars, not common stop words)
+    const STOP = new Set(['and','the','for','with','you','our','are','will','not','from','that','this','have','has','been','your','they','their','which','when','into','than','more','also','all','its','each','can','was','may','but','use','per','any','new','via','one','two','how','both','such']);
+    const extractTerms = (text) => {
+      return [...new Set(
+        text.toLowerCase()
+          .replace(/[^a-z0-9#+./\s-]/g, ' ')
+          .split(/\s+/)
+          .filter(t => t.length >= 2 && !STOP.has(t))
+      )];
+    };
+
+    const jdTerms = extractTerms(jdText);
+    const resumeTerms = new Set(extractTerms(resumeText));
 
     const matched = [], partial = [], missing = [];
-    uniqueReqs.slice(0, 8).forEach(skill => {
-      if (resumeLower.includes(skill)) {
-        matched.push({ name: skill.charAt(0).toUpperCase() + skill.slice(1), status: 'MATCHED', weight: 1.0, category: 'Skills', reasoning: `Verified in your resume/strengths.` });
-      } else if (jdLower.includes(skill)) {
-        missing.push({ name: skill.charAt(0).toUpperCase() + skill.slice(1), status: 'MISSING', weight: 0.0, category: 'Skills', reasoning: `Required by job description — not found in your profile.` });
+
+    // Each term in JD becomes a required skill; check if resume covers it
+    const meaningful = jdTerms.filter(t => t.length >= 3).slice(0, 20);
+    meaningful.forEach(term => {
+      const label = term.charAt(0).toUpperCase() + term.slice(1);
+      if (resumeTerms.has(term)) {
+        matched.push({ name: label, status: 'MATCHED', weight: 1.0, category: 'Skills', reasoning: `\'${label}\' found in your resume/strengths.` });
+      } else {
+        missing.push({ name: label, status: 'MISSING', weight: 0.0, category: 'Skills', reasoning: `\'${label}\' is required by the job description but not found in your profile.` });
       }
     });
-
-    if (matched.length === 0 && missing.length === 0) {
-      matched.push({ name: 'Core Problem Solving', status: 'MATCHED', weight: 1.0, category: 'General', reasoning: 'Baseline technical aptitude.' });
-      partial.push({ name: 'Domain Specialization', status: 'PARTIAL', weight: 0.5, category: 'General', reasoning: 'Further specialization matches the target role.' });
-    }
 
     const total = matched.length + partial.length + missing.length || 1;
     const computedScore = Math.round(((matched.length + 0.5 * partial.length) / total) * 100);
 
-    const result = {
-      document_id: 'doc_local_astria',
+    setAnalysisError('');
+    setAnalysisResult({
+      document_id: 'doc_local_text_parse',
       target_role: targetRole,
       sanitized_resume_text: resume,
+      _offline_mode: true,
       match_result: {
         score_percentage: computedScore,
         matched_skills: matched,
@@ -148,13 +168,13 @@ function AppCore() {
           audit_expression: `(${matched.length} + 0.5 × ${partial.length}) / ${total} × 100 = ${computedScore}%`
         }
       }
-    };
-    setAnalysisResult(result);
+    });
     setReadinessScore(computedScore);
   };
 
   const handleExecuteAnalysis = async ({ resumeText, file, strengths, jobDescription }) => {
     setIsAnalyzing(true);
+    setAnalysisError('');
     setRawJobDescription(jobDescription);
     setRawStrengths(strengths);
     if (resumeText) setRawResumeText(resumeText);
@@ -172,13 +192,16 @@ function AppCore() {
       const response = await fetch(`${API_BASE}/api/analyze`, { method: 'POST', body: formData });
       if (response && response.ok) {
         const data = await response.json();
+        setAnalysisError('');
         setAnalysisResult(data);
         setReadinessScore(Math.round(data?.match_result?.score_percentage || 0));
       } else {
-        fallbackLocalAnalysis(jobDescription, strengths, resumeText || '');
+        // Backend returned an error — fall back to local text parsing only
+        localTextAnalysis(jobDescription, strengths, resumeText || '');
       }
     } catch {
-      fallbackLocalAnalysis(jobDescription, strengths, resumeText || '');
+      // Backend offline — fall back to local text parsing only
+      localTextAnalysis(jobDescription, strengths, resumeText || '');
     } finally {
       setTimeout(() => {
         setIsAnalyzing(false);
@@ -298,9 +321,11 @@ function AppCore() {
             readinessScore={readinessScore}
             previousScore={previousScore}
             interviewMetrics={interviewMetrics}
-            onStartAction={() => {
-              const firstMissing = analysisResult?.match_result?.missing_skills?.[0]?.name;
-              setMasterclassModal({ isOpen: true, skillName: firstMissing || 'System Design', skillType: 'missing' });
+            missingSkills={analysisResult?.match_result?.missing_skills || []}
+            partialSkills={analysisResult?.match_result?.partial_skills || []}
+            onStartAction={(skillName) => {
+              const target = skillName || analysisResult?.match_result?.missing_skills?.[0]?.name;
+              if (target) setMasterclassModal({ isOpen: true, skillName: target, skillType: 'missing' });
             }}
             onLaunchInterview={() => setActiveView('interview')}
             onDownloadResume={() => { setActiveView('tailored'); if (!tailoredData) handleGenerateTailored(); }}

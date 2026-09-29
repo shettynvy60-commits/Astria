@@ -20,53 +20,13 @@ export default function GapDashboard({
   onResetWorkspace,
 }) {
   const matchResult = analysisData?.match_result || {};
-  const score = Math.round(matchResult.score_percentage || analysisData?.match_score || 72);
+  const score = Math.round(matchResult.score_percentage ?? analysisData?.match_score ?? 0);
   const targetRole = analysisData?.target_role || 'Target Role';
 
-  const matchedSkills = matchResult.matched_skills || [
-    {
-      name: 'Python (Expert)',
-      status: 'MATCHED',
-      category: 'Languages',
-      reasoning: 'Verified deep experience in asynchronous Python microservices and standard libraries matching backend requirements.'
-    },
-    {
-      name: 'System Design',
-      status: 'MATCHED',
-      category: 'Architecture & Systems',
-      reasoning: 'Demonstrated proficiency architecting scalable distributed systems, caching layers, and decoupled services.'
-    }
-  ];
-
-  const partialSkills = matchResult.partial_skills || [
-    {
-      name: 'TypeScript',
-      status: 'PARTIAL',
-      category: 'Languages',
-      reasoning: 'Strong JavaScript foundations present, but specific type-safety patterns and complex generics require reinforcement.'
-    },
-    {
-      name: 'GraphQL',
-      status: 'PARTIAL',
-      category: 'Backend & Frameworks',
-      reasoning: 'REST architecture verified; schema definition, resolvers, and federation patterns need practical hands-on application.'
-    }
-  ];
-
-  const missingSkills = matchResult.missing_skills || [
-    {
-      name: 'AWS & Cloud',
-      status: 'MISSING',
-      category: 'DevOps & Cloud',
-      reasoning: 'Target role mandates hands-on infrastructure deployment via ECS, Lambda, and IAM roles not documented in profile.'
-    },
-    {
-      name: 'REST APIs',
-      status: 'MISSING',
-      category: 'Backend & Frameworks',
-      reasoning: 'Core API design contracts, OpenAPI specification, and rate-limiting patterns need dedicated evidence.'
-    }
-  ];
+  // Strictly use AI-returned arrays — zero hardcoded defaults
+  const matchedSkills = matchResult.matched_skills || [];
+  const partialSkills = matchResult.partial_skills || [];
+  const missingSkills = matchResult.missing_skills || [];
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
