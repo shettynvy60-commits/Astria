@@ -80,7 +80,13 @@ class AtsScoreResponse(BaseModel):
     matched_keywords: List[str] = Field(default_factory=list, description="Keywords already present")
     strengths: List[str] = Field(default_factory=list)
     actionable_recommendations: List[str] = Field(default_factory=list)
+    # Extended category breakdown from the n-gram ATS engine
+    category_breakdown: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Per-category breakdown: hard_skills, methodologies, domain_terms — each with matched[], missing[], score"
+    )
     source: str
+
 
 
 class VerbEnhanceRequest(BaseModel):

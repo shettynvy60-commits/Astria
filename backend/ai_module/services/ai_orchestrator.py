@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any, List
 from ai_module.services.gemini_client import gemini_client
 from ai_module.services.mock_service import MockAIService
+from ai_module.services import ats_engine as _ats_engine
 from ai_module.models import (
     BulletExpansionRequest, BulletExpansionResponse,
     SummaryGenerationRequest, SummaryGenerationResponse,
@@ -296,58 +297,77 @@ class AIOrchestrator:
         return MockAIService.enhance_verbs(req.text)
 
     def score_ats(self, req: AtsScoreRequest) -> AtsScoreResponse:
+        # Truncate large payloads to prevent LLM token limit errors
+        resume_snippet = req.resume_text[:4000] if req.resume_text else ""
+        jd_snippet = (req.job_description or "")[:2000]
+
+        # Always run the deterministic n-gram engine first for category_breakdown
+        det = _ats_engine.score_ats(
+            resume_text=req.resume_text or "",
+            jd_text=req.job_description,
+            target_role=req.target_role,
+        )
+
         if gemini_client.is_available:
             try:
                 system_instruction = (
-                    "You are an enterprise Applicant Tracking System (ATS) parser algorithm and recruiter screening tool. "
-                    "Analyze the resume for structural completeness, action verb density, measurable metrics, and keyword alignment. "
-                    "Calculate an objective ATS score between 0 and 100."
+                    "You are an enterprise Applicant Tracking System (ATS) parser. "
+                    "Analyze the resume for structural completeness, action verb density, "
+                    "measurable metrics, and keyword alignment against the Job Description. "
+                    "Extract ONLY real technical keywords (tools, frameworks, languages). "
+                    "DO NOT include generic words like 'candidate', 'responsibilities', "
+                    "'successful', 'ability', 'team', 'work', 'role', 'company'. "
+                    "Calculate an objective ATS score 0-100."
                 )
                 prompt = f"""
-                Evaluate this resume:
-                ---
-                {req.resume_text}
-                ---
-                Target Job Description / Role:
-                {req.job_description or req.target_role or 'General Software & Technical Roles'}
+Evaluate this resume against the target JD:
+---RESUME (truncated)---
+{resume_snippet}
+---JOB DESCRIPTION---
+{jd_snippet or req.target_role or 'General Software & Technical Roles'}
 
-                Return JSON matching this exact structure:
-                {{
-                    "overall_score": 85,
-                    "grade": "Strong",
-                    "section_breakdown": {{
-                        "impact_verbs": 80,
-                        "keyword_density": 85,
-                        "structure_formatting": 90,
-                        "quantifiable_metrics": 75
-                    }},
-                    "missing_critical_keywords": ["DOCKER", "CI/CD", "UNIT TESTING"],
-                    "matched_keywords": ["PYTHON", "FASTAPI", "SQL", "GIT"],
-                    "strengths": ["Clear project descriptions with measurable outcomes", "Strong technical skills grouping"],
-                    "actionable_recommendations": [
-                        "Add quantifiable metrics to bullet point #2 in the project section",
-                        "Include Docker and CI/CD tools to align with backend roles"
-                    ]
-                }}
-                """
+Return JSON matching this exact structure (keywords must be real tech terms only):
+{{
+    "overall_score": 85,
+    "grade": "Strong",
+    "section_breakdown": {{
+        "impact_verbs": 80,
+        "keyword_density": 85,
+        "structure_formatting": 90,
+        "quantifiable_metrics": 75
+    }},
+    "missing_critical_keywords": ["Docker", "CI/CD", "Unit Testing"],
+    "matched_keywords": ["Python", "FastAPI", "SQL", "Git"],
+    "strengths": ["Clear project descriptions with measurable outcomes"],
+    "actionable_recommendations": ["Add Docker and CI/CD to align with backend JD requirements"]
+}}
+"""
                 data = gemini_client.generate_json(prompt, system_instruction)
                 return AtsScoreResponse(
-                    overall_score=int(data.get("overall_score", 75)),
-                    grade=data.get("grade", "Strong"),
-                    section_breakdown=data.get("section_breakdown", {}),
-                    missing_critical_keywords=data.get("missing_critical_keywords", []),
-                    matched_keywords=data.get("matched_keywords", []),
-                    strengths=data.get("strengths", []),
-                    actionable_recommendations=data.get("actionable_recommendations", []),
+                    overall_score=int(data.get("overall_score", det["ats_score"])),
+                    grade=data.get("grade", det["grade"]),
+                    section_breakdown=data.get("section_breakdown", det["section_breakdown"]),
+                    missing_critical_keywords=data.get("missing_critical_keywords", det["missing_keywords"]),
+                    matched_keywords=data.get("matched_keywords", det["matched_keywords"]),
+                    strengths=data.get("strengths", det["strengths"]),
+                    actionable_recommendations=data.get("actionable_recommendations", det["actionable_recommendations"]),
+                    category_breakdown=det["category_breakdown"],  # always from deterministic engine
                     source="gemini"
                 )
             except Exception as e:
-                logger.warning(f"Gemini ATS scoring failed: {e}")
+                logger.warning(f"Gemini ATS scoring failed, falling back to deterministic: {e}")
 
-        return MockAIService.score_ats(
-            resume_text=req.resume_text,
-            job_description=req.job_description,
-            target_role=req.target_role
+        # Deterministic fallback
+        return AtsScoreResponse(
+            overall_score=det["ats_score"],
+            grade=det["grade"],
+            section_breakdown=det["section_breakdown"],
+            missing_critical_keywords=det["missing_keywords"],
+            matched_keywords=det["matched_keywords"],
+            strengths=det["strengths"],
+            actionable_recommendations=det["actionable_recommendations"],
+            category_breakdown=det["category_breakdown"],
+            source="deterministic"
         )
 
     # ------------------------------------------------------------
