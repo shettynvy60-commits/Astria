@@ -57,35 +57,81 @@ export default function RoadmapView({
 
   if (!roadmap) {
     return (
-      <div className="bg-white p-8 sm:p-12 rounded-2xl border border-slate-200 shadow-sm text-center space-y-4 max-w-2xl mx-auto animate-fade-in">
-        <div className="w-16 h-16 mx-auto rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
-          <BookOpen className="w-8 h-8" />
+      <div className="space-y-6 max-w-2xl mx-auto animate-fade-in pb-12">
+        <div className="bg-white dark:bg-slate-900 p-8 sm:p-12 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/50 flex items-center justify-center text-sky-600 dark:text-sky-400">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">AI Pedagogical Roadmap</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+              Turn your <span className="text-rose-600 dark:text-rose-400 font-semibold">{missingSkillsCount} skill gaps</span> and{' '}
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">{partialSkillsCount} transferable skills</span> into an interactive, week-by-week technical curriculum.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onGenerateRoadmap}
+            disabled={isLoading}
+            className="btn-primary px-7 py-3 rounded-lg font-semibold text-white shadow-sm inline-flex items-center justify-center gap-2 mx-auto disabled:opacity-50"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Synthesizing Pedagogical Curriculum...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Generate Personalized Teaching Roadmap</span>
+              </>
+            )}
+          </button>
         </div>
-        <div>
-          <h3 className="text-2xl font-bold text-slate-900 tracking-tight">AI Pedagogical Roadmap</h3>
-          <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-            Turn your <span className="text-rose-600 font-semibold">{missingSkillsCount} skill gaps</span> and{' '}
-            <span className="text-amber-600 font-semibold">{partialSkillsCount} transferable skills</span> into an interactive, week-by-week technical curriculum.
-          </p>
+
+        {/* Instant Socratic AI Mentor Bot Option */}
+        <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 p-6 rounded-2xl border border-sky-800/40 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shrink-0">
+              <Bot className="w-6 h-6 text-sky-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-200 border border-sky-400/30">
+                  Instant Mentor
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Socratic Bot Ready
+                </span>
+              </div>
+              <h4 className="text-base font-bold text-white mt-1">
+                Socratic AI Tutor & Architectural Drills
+              </h4>
+              <p className="text-xs text-sky-100/80 mt-0.5">
+                Practice deep Socratic challenges, design trade-offs, and adaptive diagnostic quizzes for <strong>{targetRole}</strong>.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleOpenSocraticBot(targetRole)}
+            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 hover:to-sky-300 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all hover:scale-105 inline-flex items-center gap-2 shrink-0 cursor-pointer"
+          >
+            <Bot className="w-4 h-4 text-slate-950" />
+            <span>Launch Socratic Bot</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onGenerateRoadmap}
-          disabled={isLoading}
-          className="btn-primary px-7 py-3 rounded-lg font-semibold text-white shadow-sm inline-flex items-center justify-center gap-2 mx-auto disabled:opacity-50"
-        >
-          {isLoading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Synthesizing Pedagogical Curriculum...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              <span>Generate Personalized Teaching Roadmap</span>
-            </>
-          )}
-        </button>
+
+        {/* Socratic AI Mentor Drawer */}
+        <AITutorSandbox
+          isOpen={socraticModal.isOpen}
+          onClose={handleCloseSocraticBot}
+          skill={socraticModal.skill}
+          targetRole={targetRole}
+          resumeText={resumeText}
+          jobDescription={jobDescription}
+        />
       </div>
     );
   }

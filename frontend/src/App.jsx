@@ -384,6 +384,8 @@ function AppCore() {
             targetRole={targetRole}
             missingSkillsCount={analysisResult?.match_result?.missing_skills?.length || 0}
             partialSkillsCount={analysisResult?.match_result?.partial_skills?.length || 0}
+            resumeText={rawResumeText}
+            jobDescription={rawJobDescription}
           />
         )}
       </main>
