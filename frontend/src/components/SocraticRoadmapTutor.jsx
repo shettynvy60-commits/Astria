@@ -227,6 +227,7 @@ export default function SocraticRoadmapTutor({
     setCurrentMilestone(milestone);
     setCompletedDeliverables(null);
 
+    let stepData = null;
     try {
       const res = await fetch(`${API_BASE}/api/tutor/socratic-roadmap`, {
         method: 'POST',
@@ -240,29 +241,21 @@ export default function SocraticRoadmapTutor({
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setChatLog([{
-          type: 'tutor',
-          milestone: data.milestone,
-          milestone_name: data.milestone_name,
-          concept_anchor: data.concept_anchor,
-          socratic_probe: data.socratic_probe,
-          status: data.status,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }]);
-        return;
+        stepData = await res.json();
       }
     } catch {}
 
-    // Offline / Instant local fallback
-    const local = getClientSocraticStep(skillToStart, targetRole, milestone, null);
+    if (!stepData) {
+      stepData = getClientSocraticStep(skillToStart, targetRole, milestone, null);
+    }
+
     setChatLog([{
       type: 'tutor',
-      milestone: local.milestone,
-      milestone_name: local.milestone_name,
-      concept_anchor: local.concept_anchor,
-      socratic_probe: local.socratic_probe,
-      status: local.status,
+      milestone: stepData.milestone,
+      milestone_name: stepData.milestone_name,
+      concept_anchor: stepData.concept_anchor,
+      socratic_probe: stepData.socratic_probe,
+      status: stepData.status,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
     setIsLoading(false);
