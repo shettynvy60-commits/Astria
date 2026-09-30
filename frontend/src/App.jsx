@@ -146,7 +146,13 @@ function AppCore() {
           setActiveView('analysis');
         }, 1400);
       } else {
-        setBackendOfflineError();
+        let errorDetail = '';
+        try {
+          const errData = await response.json();
+          errorDetail = errData?.detail || '';
+        } catch {}
+        setAnalysisError(errorDetail || `Analysis error (${response.status}): Please check your resume and job description.`);
+        setIsAnalyzing(false);
       }
     } catch {
       setBackendOfflineError();

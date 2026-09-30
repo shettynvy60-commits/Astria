@@ -85,7 +85,7 @@ export default function WorkspaceScreen({
             </div>
             <div>
               <h3 className="text-sm font-bold">Astria AI Backend Required</h3>
-              <p className="text-xs text-rose-700 dark:text-rose-300 mt-1 leading-relaxed">
+              <div className="text-xs text-rose-700 dark:text-rose-300 mt-1 leading-relaxed">
                 {error === 'backend_offline' ? (
                   <>
                     The AI analysis backend is currently offline or unreachable at <code className="bg-rose-100 dark:bg-rose-900/50 px-1 py-0.5 rounded font-mono text-[11px]">http://localhost:8000</code>.
@@ -94,11 +94,27 @@ export default function WorkspaceScreen({
                     <span className="block mt-1 font-mono text-[11px] bg-slate-900 text-emerald-400 px-2.5 py-1 rounded-md w-fit">
                       python backend/run_combined_backend.py
                     </span>
+                    <button
+                      type="button"
+                      onClick={onClearError}
+                      className="mt-2.5 inline-flex items-center px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                    >
+                      Dismiss & Retry
+                    </button>
                   </>
                 ) : (
-                  error
+                  <>
+                    <span>{error}</span>
+                    <button
+                      type="button"
+                      onClick={onClearError}
+                      className="mt-2 block px-2.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-medium"
+                    >
+                      Dismiss
+                    </button>
+                  </>
                 )}
-              </p>
+              </div>
             </div>
           </div>
           {onClearError && (
