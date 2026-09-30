@@ -118,14 +118,63 @@ function AppCore() {
       return;
     }
 
-    // Extract every meaningful tech word from JD (2+ chars, not common stop words)
-    const STOP = new Set(['and','the','for','with','you','our','are','will','not','from','that','this','have','has','been','your','they','their','which','when','into','than','more','also','all','its','each','can','was','may','but','use','per','any','new','via','one','two','how','both','such']);
+    // -----------------------------------------------------------------------
+    // METADATA_BLOCKLIST: document headers, company names, seniority, prose
+    // that must NEVER be treated as technical skill requirements.
+    // Mirrors backend NOISE_WORD_BLACKLIST in match_engine.py.
+    // -----------------------------------------------------------------------
+    const METADATA_BLOCKLIST = new Set([
+      // Document section headers
+      'role','company','job','description','target','overview','about','position',
+      'status','candidate','team','work','summary','location','masterclass',
+      // Company names that appear in JD headers
+      'cloudpulse','accenture','infosys','wipro','tcs','google','amazon',
+      'microsoft','meta','apple','netflix','uber','airbnb','stripe',
+      // JD boilerplate section labels
+      'qualifications','responsibilities','requirements','preferred','benefits',
+      // Seniority / title words
+      'senior','junior','lead','principal','staff','associate','intern',
+      'manager','director','architect','engineer','developer','programmer',
+      'analyst','specialist','consultant','contractor','generalist',
+      // Experience / years
+      'years','year','experience','minimum',
+      // Work arrangement
+      'hybrid','remote','onsite','full','part','contract','permanent',
+      // Soft skills / fluff
+      'strong','proficient','familiarity','knowledge','understanding','excellent',
+      'good','proven','solid','deep','exposure','ability','passion',
+      'motivated','collaborative','communication','interpersonal','leadership',
+      'ownership','detail','analytical','creative','critical','thinking',
+      // Compensation / benefits
+      'salary','compensation','equity','bonus','lpa','ctc','package',
+      'insurance','health','dental','vision','vacation',
+      // Education
+      'bachelor','master','degree','btech','mtech','phd',
+      // Common English stop words and prose filler
+      'and','the','for','with','you','our','are','will','not','from','that',
+      'this','have','has','been','your','they','their','which','when','into',
+      'than','more','also','all','its','each','can','was','may','but','use',
+      'per','any','new','via','one','two','how','both','such','very',
+      'just','only','need','must','well','here','able','want','make','take',
+      'help','join','build','scale','drive','own','run','set','get','put',
+      'let','too','lot','key','like','move','keep','grow','meet',
+      'stack','based','some','best','high','next','long','most','using','used',
+      'real','core','wide','open','main','side','part','same','data','ship',
+      'fast','good','team','lead','work','skills','tools','across','within',
+    ]);
+
+    // Extract tokens: lowercase, strip punctuation, min 4 chars, not numeric,
+    // not in blocklist. This prevents single-letter bugs AND metadata headers.
     const extractTerms = (text) => {
       return [...new Set(
         text.toLowerCase()
           .replace(/[^a-z0-9#+./\s-]/g, ' ')
           .split(/\s+/)
-          .filter(t => t.length >= 2 && !STOP.has(t))
+          .filter(t =>
+            t.length >= 4 &&            // min length: blocks "job", "role"
+            !/^\d+$/.test(t) &&         // block pure numeric tokens
+            !METADATA_BLOCKLIST.has(t)  // block all metadata / stop words
+          )
       )];
     };
 
@@ -134,14 +183,14 @@ function AppCore() {
 
     const matched = [], partial = [], missing = [];
 
-    // Each term in JD becomes a required skill; check if resume covers it
-    const meaningful = jdTerms.filter(t => t.length >= 3).slice(0, 20);
+    // Keep up to 30 meaningful terms; cap missing output at 25
+    const meaningful = jdTerms.slice(0, 30);
     meaningful.forEach(term => {
       const label = term.charAt(0).toUpperCase() + term.slice(1);
       if (resumeTerms.has(term)) {
-        matched.push({ name: label, status: 'MATCHED', weight: 1.0, category: 'Skills', reasoning: `\'${label}\' found in your resume/strengths.` });
-      } else {
-        missing.push({ name: label, status: 'MISSING', weight: 0.0, category: 'Skills', reasoning: `\'${label}\' is required by the job description but not found in your profile.` });
+        matched.push({ name: label, status: 'MATCHED', weight: 1.0, category: 'Skills', reasoning: `'${label}' found in your resume/strengths.` });
+      } else if (missing.length < 25) {
+        missing.push({ name: label, status: 'MISSING', weight: 0.0, category: 'Skills', reasoning: `'${label}' is required by the job description but not found in your profile.` });
       }
     });
 

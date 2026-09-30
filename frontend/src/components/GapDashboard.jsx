@@ -207,9 +207,12 @@ export default function GapDashboard({
 
           <div className="space-y-3">
             {missingSkills.length === 0 ? (
-              <p className="text-sm text-slate-500 italic bg-white p-4 rounded-xl border border-slate-200">
-                No missing skill gaps detected! Excellent alignment.
-              </p>
+              <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-4 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                  No missing technical skills detected for this role.
+                </p>
+              </div>
             ) : (
               missingSkills.map((skill, idx) => (
                 <div

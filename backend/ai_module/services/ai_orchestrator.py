@@ -17,6 +17,78 @@ from ai_module.models import (
 
 logger = logging.getLogger("ai_orchestrator")
 
+# ---------------------------------------------------------------------------
+# Skill sanitizer — mirrors backend NOISE_WORD_BLACKLIST in match_engine.py.
+# Applied as a final guardrail on any LLM-produced skill list to prevent
+# document section headers, company names, or generic English words from
+# being returned as "missing skills" to the frontend.
+# ---------------------------------------------------------------------------
+_SKILL_SANITIZER_BLOCKLIST = {
+    # Document metadata headers
+    "role", "company", "job", "description", "target", "overview",
+    "about", "position", "status", "candidate", "team", "work",
+    "summary", "location", "masterclass",
+    # Company names
+    "cloudpulse", "accenture", "infosys", "wipro", "tcs",
+    "google", "amazon", "microsoft", "meta", "apple",
+    "netflix", "uber", "airbnb", "stripe",
+    # JD boilerplate
+    "qualifications", "responsibilities", "requirements",
+    "preferred", "benefits", "the role", "your role",
+    # Seniority / titles
+    "senior", "junior", "lead", "principal", "staff", "associate", "intern",
+    "manager", "director", "architect", "engineer", "developer", "programmer",
+    "analyst", "specialist", "consultant", "contractor", "generalist",
+    # Soft skills / fluff
+    "strong", "proficient", "familiarity", "knowledge", "understanding",
+    "excellent", "good", "hands-on", "proven", "solid", "deep", "exposure",
+    "ability", "passion", "motivated", "collaborative", "communication",
+    "interpersonal", "leadership", "ownership", "detail", "analytical",
+    "creative", "critical thinking", "problem solving", "problem-solving",
+    # Experience / years
+    "years", "year", "experience", "minimum",
+    # Work arrangement
+    "hybrid", "remote", "onsite", "on-site", "full-time", "part-time",
+    "contract", "permanent", "freelance",
+    # Compensation / education
+    "salary", "compensation", "equity", "bonus", "degree", "bachelor",
+    "master", "phd", "btech", "mtech",
+    # Generic English stop words
+    "and", "or", "the", "of", "in", "with", "for", "to", "a", "an",
+    "is", "be", "at", "by", "we", "as", "on", "it", "if", "no", "so",
+    "etc", "such as", "e.g", "i.e",
+}
+
+
+def _sanitize_skill_list(extracted_skills: list) -> list:
+    """
+    Strips non-technical metadata words from an LLM-produced skill list.
+    Ensures the returned list contains ONLY real technical skill entities.
+
+    Rules applied:
+    - Skip if normalized token is in the metadata blocklist
+    - Skip if token is purely numeric (e.g. "5", "10+")
+    - Skip if token is shorter than 2 characters
+    - Preserve original casing of legitimate skill names
+    """
+    cleaned = []
+    for skill in extracted_skills:
+        if not isinstance(skill, str):
+            continue
+        normalized = skill.strip().lower()
+        if not normalized:
+            continue
+        if normalized in _SKILL_SANITIZER_BLOCKLIST:
+            continue
+        if normalized.isnumeric():
+            continue
+        if len(normalized) < 2:
+            continue
+        cleaned.append(skill.strip())
+    return cleaned
+
+
+
 class AIOrchestrator:
     """
     Coordinates between Live Gemini 3.8 Flash API and Offline Mock Service.
@@ -333,27 +405,50 @@ class AIOrchestrator:
         if gemini_client.is_available:
             try:
                 system_instruction = (
-                    "You are a career development mentor. Compare candidate current skills with industry standards "
-                    "for their desired role and pinpoint critical missing skills and learning paths."
+                    "You are a senior engineering career mentor specializing in technical skill gap analysis. "
+                    "Your task is to compare a candidate's existing skills against the role requirements and "
+                    "identify strictly technical gaps.\n\n"
+                    "CRITICAL EXTRACTION RULES — you MUST follow these exactly:\n"
+                    "1. Extract ONLY hard technical skills: programming languages, frameworks, libraries, "
+                    "   developer tools, cloud platforms, databases, protocols, and official methodologies.\n"
+                    "2. DO NOT extract document section headers (e.g., 'Role', 'Company', 'Job Description', "
+                    "   'Requirements', 'Target', 'Overview', 'Description').\n"
+                    "3. DO NOT extract company names or brand names (e.g., 'Cloudpulse', 'Google', 'Amazon').\n"
+                    "4. DO NOT extract job titles or seniority levels (e.g., 'Full Stack Developer', "
+                    "   'Senior Engineer', 'Lead').\n"
+                    "5. DO NOT extract generic English words, filler phrases, or soft skills "
+                    "   (e.g., 'Responsibilities', 'Candidate', 'Ability', 'Strong', 'Experience', "
+                    "   'Years', 'Team', 'Work', 'Status', 'Masterclass').\n"
+                    "6. Each item in missing_skills must be a real, specific, named technical skill "
+                    "   that a developer can learn and demonstrate."
                 )
                 prompt = f"""
-                Evaluate skill gap:
+                Evaluate skill gap for this candidate:
                 Target Role: {req.target_role}
                 Current Skills: {', '.join(req.current_skills)}
-                Job Description Context: {req.job_description or 'Standard industry benchmark'}
+                Job Description Context: {req.job_description or 'Standard industry benchmark for this role'}
 
-                Return JSON matching this exact structure:
+                Return JSON with ONLY technical skills in this exact structure:
                 {{
-                    "strong_matches": ["Skill 1", "Skill 2"],
-                    "critical_missing_skills": ["Missing Skill 1", "Missing Skill 2"],
+                    "strong_matches": ["Python", "FastAPI", "PostgreSQL"],
+                    "critical_missing_skills": ["Kubernetes", "Redis", "TypeScript"],
                     "recommended_courses_or_topics": ["Topic or course 1", "Topic or course 2"]
                 }}
+
+                IMPORTANT: Every item in the arrays must be a specific named technology or tool.
+                Never include: section headers, company names, years of experience,
+                work arrangement terms, or generic adjectives.
                 """
                 data = gemini_client.generate_json(prompt, system_instruction)
+
+                # Post-filter: sanitize LLM output to strip any residual metadata words
+                sanitized_missing = _sanitize_skill_list(data.get("critical_missing_skills", []))
+                sanitized_matches = _sanitize_skill_list(data.get("strong_matches", []))
+
                 return SkillGapResponse(
                     target_role=req.target_role,
-                    strong_matches=data.get("strong_matches", []),
-                    critical_missing_skills=data.get("critical_missing_skills", []),
+                    strong_matches=sanitized_matches,
+                    critical_missing_skills=sanitized_missing,
                     recommended_courses_or_topics=data.get("recommended_courses_or_topics", []),
                     source="gemini"
                 )

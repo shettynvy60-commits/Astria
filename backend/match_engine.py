@@ -32,10 +32,23 @@ NOISE_WORD_BLACKLIST: Set[str] = {
     # Work arrangement
     "hybrid", "remote", "onsite", "on-site", "full-time", "part-time", "contract",
     "permanent", "freelance", "relocation",
+    # -----------------------------------------------------------------------
+    # DOCUMENT METADATA HEADERS — section labels that are NOT skills
+    # These appear verbatim at the top of job postings and resumes and must
+    # never be treated as candidate skill requirements.
+    # -----------------------------------------------------------------------
+    "role", "company", "job", "description", "target", "overview",
+    "about", "position", "status", "candidate", "team", "work",
+    "summary", "location", "masterclass",
+    # Company / brand names that appear in JD headers
+    "cloudpulse", "accenture", "infosys", "wipro", "tcs", "google", "amazon",
+    "microsoft", "meta", "apple", "netflix", "uber", "airbnb", "stripe",
     # JD boilerplate section headers
     "qualifications", "responsibilities", "requirements", "preferred", "benefits",
     "about us", "nice to have", "must have", "what we offer", "who we are",
     "the role", "your role", "what you will do", "what you need",
+    "job description", "job requirements", "role description", "role overview",
+    "company overview", "about the company", "about the role",
     # Generic action verbs / soft fluff
     "strong", "proficient", "familiarity", "knowledge", "understanding",
     "excellent", "good", "hands-on", "proven", "solid", "deep", "exposure",
@@ -46,15 +59,22 @@ NOISE_WORD_BLACKLIST: Set[str] = {
     # Location / geo
     "location", "city", "state", "country", "bangalore", "mumbai", "delhi",
     "hyderabad", "chennai", "pune", "india", "usa", "uk", "canada", "australia",
+    "san francisco", "new york", "london", "berlin", "singapore",
     # Compensation / benefits
     "salary", "compensation", "equity", "bonus", "lpa", "ctc", "package",
     "insurance", "health", "dental", "vision", "vacation", "pto",
     # Education
     "bachelor", "master", "degree", "btech", "mtech", "b.e", "m.e", "phd",
     "computer science", "information technology", "engineering degree",
-    # Misc noise
+    # Common English stop words that appear in JD prose but are not skills
     "and", "or", "the", "of", "in", "with", "for", "to", "a", "an",
+    "is", "be", "at", "by", "we", "as", "on", "up", "do", "it", "if",
+    "no", "so", "us", "an", "he", "she", "they",
     "etc", "including", "such as", "e.g", "i.e",
+    # Additional prose words found verbatim in JD metadata blocks
+    "full", "stack", "based", "join", "help", "build", "scale", "drive",
+    "own", "run", "set", "get", "put", "let", "too", "lot", "key",
+    "like", "take", "make", "move", "keep", "grow", "meet", "lead",
 }
 
 
