@@ -3,6 +3,10 @@ Astria Deterministic Match Engine
 Calculates job fit score using the mathematical formula:
 Match Score = ((matched + 0.5 * partial) / total_required) * 100
 Completely deterministic, transparent, and explainable with zero LLM hallucination.
+
+Gap Audit Filter: Only real technical skills, tools, frameworks, and domain expertise
+are extracted and compared. Non-skill keywords (job titles, years of experience,
+work arrangements, generic boilerplate) are explicitly excluded.
 """
 
 from __future__ import annotations
@@ -10,6 +14,129 @@ import re
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Noise Word Blacklist — Explicitly Excluded from Gap Audit Output
+# ---------------------------------------------------------------------------
+# Words / phrases that commonly appear in JDs but are NOT technical skills.
+# Compared against lower-cased, stripped candidate tokens.
+NOISE_WORD_BLACKLIST: Set[str] = {
+    # Role metadata & seniority
+    "senior", "junior", "lead", "principal", "staff", "associate", "intern",
+    "manager", "director", "architect", "engineer", "developer", "programmer",
+    "analyst", "specialist", "consultant", "contractor", "generalist",
+    # Years / experience
+    "years", "year", "experience", "minimum", "minimum experience", "5 years",
+    "3 years", "2 years", "1 year", "7 years", "10 years",
+    # Work arrangement
+    "hybrid", "remote", "onsite", "on-site", "full-time", "part-time", "contract",
+    "permanent", "freelance", "relocation",
+    # JD boilerplate section headers
+    "qualifications", "responsibilities", "requirements", "preferred", "benefits",
+    "about us", "nice to have", "must have", "what we offer", "who we are",
+    "the role", "your role", "what you will do", "what you need",
+    # Generic action verbs / soft fluff
+    "strong", "proficient", "familiarity", "knowledge", "understanding",
+    "excellent", "good", "hands-on", "proven", "solid", "deep", "exposure",
+    "ability", "ability to", "passion", "motivated", "collaborative",
+    "communication", "interpersonal", "leadership", "ownership", "detail",
+    "team player", "self-starter", "fast learner", "problem solving",
+    "problem-solving", "critical thinking", "analytical", "creative",
+    # Location / geo
+    "location", "city", "state", "country", "bangalore", "mumbai", "delhi",
+    "hyderabad", "chennai", "pune", "india", "usa", "uk", "canada", "australia",
+    # Compensation / benefits
+    "salary", "compensation", "equity", "bonus", "lpa", "ctc", "package",
+    "insurance", "health", "dental", "vision", "vacation", "pto",
+    # Education
+    "bachelor", "master", "degree", "btech", "mtech", "b.e", "m.e", "phd",
+    "computer science", "information technology", "engineering degree",
+    # Misc noise
+    "and", "or", "the", "of", "in", "with", "for", "to", "a", "an",
+    "etc", "including", "such as", "e.g", "i.e",
+}
+
+
+# ---------------------------------------------------------------------------
+# Canonical display-casing map for skill name output
+# ---------------------------------------------------------------------------
+SKILL_DISPLAY_CASING: Dict[str, str] = {
+    "python": "Python",
+    "javascript": "JavaScript",
+    "typescript": "TypeScript",
+    "react": "React",
+    "next.js": "Next.js",
+    "vue": "Vue.js",
+    "angular": "Angular",
+    "node.js": "Node.js",
+    "express": "Express",
+    "fastapi": "FastAPI",
+    "django": "Django",
+    "flask": "Flask",
+    "go": "Go",
+    "rust": "Rust",
+    "java": "Java",
+    "c++": "C++",
+    "c#": "C#",
+    "c": "C",
+    "postgresql": "PostgreSQL",
+    "mysql": "MySQL",
+    "sqlite": "SQLite",
+    "mongodb": "MongoDB",
+    "redis": "Redis",
+    "sql": "SQL",
+    "nosql": "NoSQL",
+    "docker": "Docker",
+    "kubernetes": "Kubernetes",
+    "aws": "AWS",
+    "gcp": "GCP",
+    "azure": "Azure",
+    "ci/cd": "CI/CD",
+    "git": "Git",
+    "linux": "Linux",
+    "terraform": "Terraform",
+    "kafka": "Apache Kafka",
+    "rabbitmq": "RabbitMQ",
+    "graphql": "GraphQL",
+    "grpc": "gRPC",
+    "rest": "REST",
+    "microservices": "Microservices",
+    "pytorch": "PyTorch",
+    "tensorflow": "TensorFlow",
+    "llm": "LLM / GenAI",
+    "rag": "RAG",
+    "pytest": "pytest",
+    "jest": "Jest",
+    "tailwind css": "Tailwind CSS",
+    "html": "HTML5",
+    "css": "CSS3",
+}
+
+
+def _is_noise_word(skill: str) -> bool:
+    """
+    Returns True if the skill token is a known non-technical noise word
+    that should be excluded from the Gap Audit output.
+    """
+    clean = skill.strip().lower()
+    if clean in NOISE_WORD_BLACKLIST:
+        return True
+    # Also block purely numeric tokens (e.g. "5", "3+")
+    if re.fullmatch(r'[\d+\-\.]+', clean):
+        return True
+    # Block tokens shorter than 2 characters (except known 1-char skills handled separately)
+    if len(clean) < 2 and clean not in {"c"}:
+        return True
+    return False
+
+
+def _display_skill(canonical: str) -> str:
+    """
+    Returns the proper display-cased name for a canonical skill key.
+    Preserves original casing for skills not in the display map.
+    """
+    return SKILL_DISPLAY_CASING.get(canonical.lower(), canonical.title())
 
 
 class MatchStatus(str, Enum):
@@ -447,10 +574,22 @@ class MatchEngine:
     def parse_job_requirements(self, jd_text: str) -> Tuple[List[str], List[str]]:
         """
         Extracts required vs preferred/bonus skills from Job Description text.
+
+        Extraction strategy:
+        - Uses the curated SKILL_TAXONOMY as an exact allowlist — only canonical
+          technical skills, tools, frameworks, and domain expertise are extracted.
+        - Non-skill tokens (job titles, years, locations, boilerplate) are filtered
+          out by the taxonomy allowlist itself and by the NOISE_WORD_BLACKLIST.
+        - Partitions results into required vs preferred based on JD section headers.
+
         Returns: (required_skills, preferred_skills)
         """
+        # Run the taxonomy-based extractor (already an allowlist — only known skills pass)
         all_skills = self.extract_skills_from_text(jd_text)
-        
+
+        # Apply noise-word blacklist as a safety-net post-filter
+        all_skills = {s for s in all_skills if not _is_noise_word(s)}
+
         # Partition based on common section headers
         required_skills: Set[str] = set()
         preferred_skills: Set[str] = set()
@@ -458,29 +597,41 @@ class MatchEngine:
         # Heuristic section splitting
         lines = jd_text.splitlines()
         is_preferred_section = False
-        
+
         for line in lines:
-            line_lower = line.lower()
-            if any(pref in line_lower for pref in ["nice to have", "preferred", "bonus", "plus", "desirable"]):
+            line_lower = line.lower().strip()
+
+            # Detect section transitions
+            if any(pref in line_lower for pref in [
+                "nice to have", "preferred", "bonus", "plus", "desirable",
+                "good to have", "advantageous"
+            ]):
                 is_preferred_section = True
-            elif any(req in line_lower for req in ["requirements", "required", "qualifications", "must have", "responsibilities"]):
+            elif any(req in line_lower for req in [
+                "requirements", "required skills", "required qualifications",
+                "must have", "responsibilities", "what you need",
+                "minimum qualifications", "mandatory"
+            ]):
                 is_preferred_section = False
 
+            # Extract only taxonomy-known skills from this line
             line_skills = self.extract_skills_from_text(line)
+            # Apply blacklist filter on each line's extracted tokens
+            line_skills = {s for s in line_skills if not _is_noise_word(s)}
+
             if is_preferred_section:
                 preferred_skills.update(line_skills)
             else:
                 required_skills.update(line_skills)
 
-        # If everything fell into preferred or required, ensure sensible default
+        # Sensible defaults
         if not required_skills and preferred_skills:
             required_skills = preferred_skills
             preferred_skills = set()
         elif not required_skills and not preferred_skills:
-            # Fall back to all extracted skills as required
             required_skills = all_skills
 
-        # Ensure no overlap: skills in required take precedence
+        # Ensure no overlap: required takes precedence
         preferred_skills = preferred_skills - required_skills
 
         return sorted(list(required_skills)), sorted(list(preferred_skills))
@@ -508,6 +659,10 @@ class MatchEngine:
             required_skills = [self._normalize_skill(s) for s in raw_req]
             preferred_skills = [self._normalize_skill(s) for s in raw_pref]
 
+        # Post-normalize: apply noise blacklist to the requirement lists
+        required_skills = [s for s in required_skills if not _is_noise_word(s)]
+        preferred_skills = [s for s in preferred_skills if not _is_noise_word(s)]
+
         matched_list: List[EvaluatedSkill] = []
         partial_list: List[EvaluatedSkill] = []
         missing_list: List[EvaluatedSkill] = []
@@ -519,15 +674,18 @@ class MatchEngine:
             category = tax_entry.get("category", SkillCategory.GENERAL)
             adjacent_list = tax_entry.get("adjacent", [])
 
+            # Use display-cased name for output (preserves "TypeScript", "FastAPI", etc.)
+            display_name = _display_skill(req)
+
             # Check for direct match
             if req in candidate_skills:
                 matched_list.append(
                     EvaluatedSkill(
-                        name=req,
+                        name=display_name,
                         status=MatchStatus.MATCHED,
                         weight=1.0,
                         category=category,
-                        candidate_evidence=f"Direct match found on resume: '{req}'",
+                        candidate_evidence=f"Direct match found on resume: '{display_name}'",
                         reasoning="Exact skill keyword or synonym identified in candidate profile."
                     )
                 )
@@ -535,25 +693,26 @@ class MatchEngine:
                 # Check for adjacent/transferable match (partial)
                 found_adjacent = [adj for adj in adjacent_list if adj in candidate_skills]
                 if found_adjacent:
+                    adjacent_display = [_display_skill(a) for a in found_adjacent]
                     partial_list.append(
                         EvaluatedSkill(
-                            name=req,
+                            name=display_name,
                             status=MatchStatus.PARTIAL,
                             weight=0.5,
                             category=category,
-                            candidate_evidence=f"Transferable experience: {', '.join(found_adjacent)}",
-                            reasoning=f"Candidate has adjacent proficiency in {found_adjacent[0]}, offering ~50% paradigm transferability."
+                            candidate_evidence=f"Transferable experience: {', '.join(adjacent_display)}",
+                            reasoning=f"Candidate has adjacent proficiency in {adjacent_display[0]}, offering ~50% paradigm transferability."
                         )
                     )
                 else:
                     missing_list.append(
                         EvaluatedSkill(
-                            name=req,
+                            name=display_name,
                             status=MatchStatus.MISSING,
                             weight=0.0,
                             category=category,
                             candidate_evidence=None,
-                            reasoning=f"No direct or adjacent mentions of '{req}' found in candidate profile."
+                            reasoning=f"No direct or adjacent mentions of '{display_name}' found in candidate profile."
                         )
                     )
 
@@ -561,14 +720,15 @@ class MatchEngine:
         for pref in preferred_skills:
             tax_entry = self.taxonomy.get(pref, {})
             category = tax_entry.get("category", SkillCategory.GENERAL)
+            pref_display = _display_skill(pref)
             if pref in candidate_skills:
                 bonus_list.append(
                     EvaluatedSkill(
-                        name=pref,
+                        name=pref_display,
                         status=MatchStatus.BONUS,
                         weight=0.0,  # Bonus doesn't inflate base required denominator
                         category=category,
-                        candidate_evidence=f"Bonus skill verified: '{pref}'",
+                        candidate_evidence=f"Bonus skill verified: '{pref_display}'",
                         reasoning="Preferred qualification found; represents positive competitive differentiator."
                     )
                 )

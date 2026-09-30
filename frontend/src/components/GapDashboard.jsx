@@ -28,6 +28,12 @@ export default function GapDashboard({
   const partialSkills = matchResult.partial_skills || [];
   const missingSkills = matchResult.missing_skills || [];
 
+  // Clean string arrays for roadmap generation — extracted from structured skill objects
+  // These are display-cased canonical technical skill names only (no noise words)
+  const missingSkillNames  = missingSkills.map(s => s.name).filter(Boolean);
+  const partialSkillNames  = partialSkills.map(s => s.name).filter(Boolean);
+  const matchedSkillNames  = matchedSkills.map(s => s.name).filter(Boolean);
+
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       {/* Top Banner / Match Summary */}
@@ -45,6 +51,20 @@ export default function GapDashboard({
               Score = ((matched + 0.5 × partial) / total) × 100
             </code>. Zero hallucinations, fully verifiable.
           </p>
+          {/* Quick-view: missing skill entity chips — real technical skills only */}
+          {missingSkillNames.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 self-center mr-1">Gaps:</span>
+              {missingSkillNames.map((name, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Score Card */}

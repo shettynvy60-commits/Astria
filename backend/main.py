@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 # Local Service Imports
 from pii_scrubber import PIIScrubResult, scrubber
-from match_engine import MatchResult, match_engine
+from match_engine import MatchResult, match_engine, _is_noise_word, _display_skill
 from llm_service import (
     TeachingCurriculum,
     TailoredResumeResponse,
@@ -59,6 +59,23 @@ app.include_router(ai_resume_router)
 
 
 # --- Helper Utilities ---
+
+
+def gap_audit_filter(match_result: MatchResult) -> MatchResult:
+    """
+    Final safety-net filter applied to any MatchResult before returning to the client.
+    Removes any EvaluatedSkill entries whose name resolves to a noise word.
+    Ensures the gap audit output contains ONLY real technical skill entities.
+    """
+    def clean(skill_list):
+        return [s for s in skill_list if not _is_noise_word(s.name)]
+
+    match_result.matched_skills = clean(match_result.matched_skills)
+    match_result.partial_skills = clean(match_result.partial_skills)
+    match_result.missing_skills = clean(match_result.missing_skills)
+    match_result.bonus_skills   = clean(match_result.bonus_skills)
+    return match_result
+
 
 def extract_text_from_upload(content: bytes, filename: str) -> str:
     """Extracts raw text from uploaded PDF, DOCX, or plain text files."""
@@ -224,6 +241,9 @@ async def analyze_resume(
         job_description_text=job_description
     )
 
+    # 3. Gap Audit Filter — ensure only real skill entities in the output
+    match_result = gap_audit_filter(match_result)
+
     doc_id = f"doc_{uuid.uuid4().hex[:10]}"
 
     return AnalyzeResponse(
@@ -248,6 +268,8 @@ def analyze_resume_json(payload: TextAnalyzeRequest):
         resume_text=pii_result.sanitized_text,
         job_description_text=payload.job_description
     )
+    # Gap Audit Filter — ensure only real skill entities in the output
+    match_result = gap_audit_filter(match_result)
     doc_id = f"doc_{uuid.uuid4().hex[:10]}"
 
     return AnalyzeResponse(
@@ -259,6 +281,59 @@ def analyze_resume_json(payload: TextAnalyzeRequest):
         pii_mapping=pii_result.mapping,
         is_presidio_powered=pii_result.is_presidio_powered,
         match_result=match_result
+    )
+
+
+class GapAuditSkillsRequest(BaseModel):
+    resume_text: str = Field(..., description="Raw or pre-extracted resume text")
+    job_description: str = Field(..., description="Target job description text")
+
+
+class GapAuditSkillsResponse(BaseModel):
+    missing_skills: List[str] = Field(
+        ...,
+        description=(
+            "Clean array of missing technical skill names — strictly technical skills, "
+            "tools, frameworks, and domain expertise. No job titles, years, locations, "
+            "or boilerplate text included."
+        )
+    )
+    matched_skills: List[str]
+    partial_skills: List[str]
+    score_percentage: float
+
+
+@app.post("/api/gap-audit/missing-skills", response_model=GapAuditSkillsResponse)
+def get_missing_skills(payload: GapAuditSkillsRequest):
+    """
+    Dedicated Gap Audit endpoint returning a clean array of skill name strings.
+
+    Strictly extracts, normalizes, and compares real technical skills, tools,
+    frameworks, and domain expertise. Filters out all generic JD vocabulary
+    (job titles, years of experience, locations, boilerplate verbs).
+
+    Gap calculation:
+        missing_skills = [skill for skill in jd_skills if skill not in resume_skills]
+
+    Returns:
+        - missing_skills: list of skill names the candidate is missing
+        - matched_skills: list of directly matched skill names
+        - partial_skills: list of partially matched (transferable) skill names
+        - score_percentage: deterministic match score
+    """
+    pii_result = scrubber.scrub(payload.resume_text, mode="pseudonymize")
+    match_result = match_engine.evaluate_match(
+        resume_text=pii_result.sanitized_text,
+        job_description_text=payload.job_description
+    )
+    # Apply final safety-net filter
+    match_result = gap_audit_filter(match_result)
+
+    return GapAuditSkillsResponse(
+        missing_skills=[s.name for s in match_result.missing_skills],
+        matched_skills=[s.name for s in match_result.matched_skills],
+        partial_skills=[s.name for s in match_result.partial_skills],
+        score_percentage=match_result.score_percentage,
     )
 
 
