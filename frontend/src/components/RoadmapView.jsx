@@ -11,7 +11,7 @@ import {
   CheckCircle2,
   Bot
 } from 'lucide-react';
-import AITutorSandbox from './AITutorSandbox';
+import SocraticRoadmapTutor from './SocraticRoadmapTutor';
 
 export default function RoadmapView({
   roadmap,
@@ -123,14 +123,13 @@ export default function RoadmapView({
           </button>
         </div>
 
-        {/* Socratic AI Mentor Drawer */}
-        <AITutorSandbox
+        {/* Socratic Roadmap Skill Tutor */}
+        <SocraticRoadmapTutor
           isOpen={socraticModal.isOpen}
           onClose={handleCloseSocraticBot}
-          skill={socraticModal.skill}
+          initialSkill={socraticModal.skill || targetRole || 'Redis'}
           targetRole={targetRole}
-          resumeText={resumeText}
-          jobDescription={jobDescription}
+          availableSkills={['Redis', 'System Design', 'Kafka', 'Docker', 'PostgreSQL', 'GraphQL']}
         />
       </div>
     );
@@ -321,14 +320,17 @@ export default function RoadmapView({
         ))}
       </div>
 
-      {/* Socratic AI Mentor Drawer */}
-      <AITutorSandbox
+      {/* Socratic Roadmap Skill Tutor */}
+      <SocraticRoadmapTutor
         isOpen={socraticModal.isOpen}
         onClose={handleCloseSocraticBot}
-        skill={socraticModal.skill}
-        targetRole={roadmap.target_role || targetRole}
-        resumeText={resumeText}
-        jobDescription={jobDescription}
+        initialSkill={socraticModal.skill || roadmap?.target_role || targetRole || 'Redis'}
+        targetRole={roadmap?.target_role || targetRole}
+        availableSkills={
+          roadmap?.milestones
+            ? [...new Set(roadmap.milestones.flatMap(m => m.modules?.map(mod => mod.focus_skill)).filter(Boolean))]
+            : ['Redis', 'System Design', 'Kafka', 'Docker', 'PostgreSQL', 'GraphQL']
+        }
       />
     </div>
   );

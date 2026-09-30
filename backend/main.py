@@ -157,6 +157,13 @@ class TutorChatRequest(BaseModel):
     context: Optional[str] = None
 
 
+class SocraticRoadmapStepRequest(BaseModel):
+    skill: str
+    target_role: Optional[str] = "Software Engineer"
+    current_milestone: int = Field(1, description="1, 2, or 3")
+    user_answer: Optional[str] = None
+
+
 class PIIScrubPreviewRequest(BaseModel):
     text: str
     mode: str = Field("pseudonymize", description="'pseudonymize' or 'redact'")
@@ -398,6 +405,32 @@ async def tutor_chat(payload: TutorChatRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Tutor chat error: {str(e)}"
+        )
+
+
+@app.post("/api/tutor/socratic-roadmap")
+def socratic_roadmap_step(payload: SocraticRoadmapStepRequest):
+    """
+    Socratic Roadmap Skill Tutor:
+    Guides candidates through missing skills via 3 roadmap milestones:
+    1. The Core Problem
+    2. Architecture & Trade-offs
+    3. Resume / Project Application
+    Follows strict Concept Anchor + Socratic Probe structure with adaptive progression.
+    """
+    try:
+        from socratic_roadmap_tutor import get_socratic_step
+        return get_socratic_step(
+            skill=payload.skill,
+            target_role=payload.target_role or "Software Engineer",
+            current_milestone=payload.current_milestone or 1,
+            user_answer=payload.user_answer
+        )
+    except Exception as e:
+        logger.error(f"Socratic roadmap step error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Socratic tutor error: {str(e)}"
         )
 
 
