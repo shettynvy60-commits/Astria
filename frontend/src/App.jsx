@@ -107,119 +107,14 @@ function AppCore() {
 
   const [analysisError, setAnalysisError] = useState('');
 
-  // Pure text-extraction fallback: only uses what the user actually typed.
-  // No hardcoded skill names are ever injected.
-  const localTextAnalysis = (jd = '', strengths = '', resume = '') => {
-    const jdText = jd.trim();
-    const resumeText = (resume + ' ' + strengths).trim();
-
-    if (!jdText) {
-      setAnalysisError('Job description is required to run the gap analysis.');
-      return;
-    }
-
-    // -----------------------------------------------------------------------
-    // METADATA_BLOCKLIST: document headers, company names, seniority, prose
-    // that must NEVER be treated as technical skill requirements.
-    // Mirrors backend NOISE_WORD_BLACKLIST in match_engine.py.
-    // -----------------------------------------------------------------------
-    const METADATA_BLOCKLIST = new Set([
-      // Document section headers
-      'role','company','job','description','target','overview','about','position',
-      'status','candidate','team','work','summary','location','masterclass',
-      // Company names that appear in JD headers
-      'cloudpulse','accenture','infosys','wipro','tcs','google','amazon',
-      'microsoft','meta','apple','netflix','uber','airbnb','stripe',
-      // JD boilerplate section labels
-      'qualifications','responsibilities','requirements','preferred','benefits',
-      // Seniority / title words
-      'senior','junior','lead','principal','staff','associate','intern',
-      'manager','director','architect','engineer','developer','programmer',
-      'analyst','specialist','consultant','contractor','generalist',
-      // Experience / years
-      'years','year','experience','minimum',
-      // Work arrangement
-      'hybrid','remote','onsite','full','part','contract','permanent',
-      // Soft skills / fluff
-      'strong','proficient','familiarity','knowledge','understanding','excellent',
-      'good','proven','solid','deep','exposure','ability','passion',
-      'motivated','collaborative','communication','interpersonal','leadership',
-      'ownership','detail','analytical','creative','critical','thinking',
-      // Compensation / benefits
-      'salary','compensation','equity','bonus','lpa','ctc','package',
-      'insurance','health','dental','vision','vacation',
-      // Education
-      'bachelor','master','degree','btech','mtech','phd',
-      // Common English stop words and prose filler
-      'and','the','for','with','you','our','are','will','not','from','that',
-      'this','have','has','been','your','they','their','which','when','into',
-      'than','more','also','all','its','each','can','was','may','but','use',
-      'per','any','new','via','one','two','how','both','such','very',
-      'just','only','need','must','well','here','able','want','make','take',
-      'help','join','build','scale','drive','own','run','set','get','put',
-      'let','too','lot','key','like','move','keep','grow','meet',
-      'stack','based','some','best','high','next','long','most','using','used',
-      'real','core','wide','open','main','side','part','same','data','ship',
-      'fast','good','team','lead','work','skills','tools','across','within',
-    ]);
-
-    // Extract tokens: lowercase, strip punctuation, min 4 chars, not numeric,
-    // not in blocklist. This prevents single-letter bugs AND metadata headers.
-    const extractTerms = (text) => {
-      return [...new Set(
-        text.toLowerCase()
-          .replace(/[^a-z0-9#+./\s-]/g, ' ')
-          .split(/\s+/)
-          .filter(t =>
-            t.length >= 4 &&            // min length: blocks "job", "role"
-            !/^\d+$/.test(t) &&         // block pure numeric tokens
-            !METADATA_BLOCKLIST.has(t)  // block all metadata / stop words
-          )
-      )];
-    };
-
-    const jdTerms = extractTerms(jdText);
-    const resumeTerms = new Set(extractTerms(resumeText));
-
-    const matched = [], partial = [], missing = [];
-
-    // Keep up to 30 meaningful terms; cap missing output at 25
-    const meaningful = jdTerms.slice(0, 30);
-    meaningful.forEach(term => {
-      const label = term.charAt(0).toUpperCase() + term.slice(1);
-      if (resumeTerms.has(term)) {
-        matched.push({ name: label, status: 'MATCHED', weight: 1.0, category: 'Skills', reasoning: `'${label}' found in your resume/strengths.` });
-      } else if (missing.length < 25) {
-        missing.push({ name: label, status: 'MISSING', weight: 0.0, category: 'Skills', reasoning: `'${label}' is required by the job description but not found in your profile.` });
-      }
-    });
-
-    const total = matched.length + partial.length + missing.length || 1;
-    const computedScore = Math.round(((matched.length + 0.5 * partial.length) / total) * 100);
-
-    setAnalysisError('');
-    setAnalysisResult({
-      document_id: 'doc_local_text_parse',
-      target_role: targetRole,
-      sanitized_resume_text: resume,
-      _offline_mode: true,
-      match_result: {
-        score_percentage: computedScore,
-        matched_skills: matched,
-        partial_skills: partial,
-        missing_skills: missing,
-        bonus_skills: [],
-        audit: {
-          matched_count: matched.length,
-          partial_count: partial.length,
-          missing_count: missing.length,
-          bonus_count: 0,
-          total_required: total,
-          audit_expression: `(${matched.length} + 0.5 × ${partial.length}) / ${total} × 100 = ${computedScore}%`
-        }
-      }
-    });
-    setReadinessScore(computedScore);
+  // Show a clear offline prompt — never attempt naive word extraction,
+  // which produces garbage like 'Construct', 'Services', 'Develop' as "skills".
+  // The AI backend is the only source of truth for skill classification.
+  const setBackendOfflineError = () => {
+    setAnalysisError('backend_offline');
+    setAnalysisResult(null);
+    setIsAnalyzing(false);
+    setHasCompletedAnalysis(false);
   };
 
   const handleExecuteAnalysis = async ({ resumeText, file, strengths, jobDescription }) => {
@@ -245,21 +140,19 @@ function AppCore() {
         setAnalysisError('');
         setAnalysisResult(data);
         setReadinessScore(Math.round(data?.match_result?.score_percentage || 0));
+        setTimeout(() => {
+          setIsAnalyzing(false);
+          setHasCompletedAnalysis(true);
+          setActiveView('analysis');
+        }, 1400);
       } else {
-        // Backend returned an error — fall back to local text parsing only
-        localTextAnalysis(jobDescription, strengths, resumeText || '');
+        setBackendOfflineError();
       }
     } catch {
-      // Backend offline — fall back to local text parsing only
-      localTextAnalysis(jobDescription, strengths, resumeText || '');
-    } finally {
-      setTimeout(() => {
-        setIsAnalyzing(false);
-        setHasCompletedAnalysis(true);
-        setActiveView('analysis');
-      }, 1400);
+      setBackendOfflineError();
     }
   };
+
 
   const handleMarkSkillComplete = (skillName) => {
     if (!analysisResult?.match_result) return;
@@ -409,6 +302,8 @@ function AppCore() {
             initialResumeText={rawResumeText}
             initialStrengths={rawStrengths}
             initialJobDescription={rawJobDescription}
+            error={analysisError}
+            onClearError={() => setAnalysisError('')}
           />
         )}
 

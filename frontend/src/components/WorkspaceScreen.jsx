@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, X, Sparkles } from 'lucide-react';
+import { UploadCloud, FileText, X, Sparkles, AlertTriangle } from 'lucide-react';
 import QuickRolePresets from './QuickRolePresets';
 import PrivacyShield from './PrivacyShield';
 import { useUser } from '../context/UserContext';
@@ -9,7 +9,9 @@ export default function WorkspaceScreen({
   isLoading,
   initialResumeText = '',
   initialStrengths = '',
-  initialJobDescription = ''
+  initialJobDescription = '',
+  error = '',
+  onClearError
 }) {
   const { user } = useUser();
   const [resumeText, setResumeText] = useState(initialResumeText);
@@ -73,6 +75,43 @@ export default function WorkspaceScreen({
 
       {/* Quick-Role Preset Bar — highlight only, no auto-fill */}
       <QuickRolePresets activePreset={activePreset} onSelect={handlePresetSelect} />
+
+      {/* Backend Offline / Analysis Error Notice */}
+      {error && (
+        <div className="mb-6 p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200 flex items-start justify-between gap-3 shadow-sm animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 rounded-lg bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold">Astria AI Backend Required</h3>
+              <p className="text-xs text-rose-700 dark:text-rose-300 mt-1 leading-relaxed">
+                {error === 'backend_offline' ? (
+                  <>
+                    The AI analysis backend is currently offline or unreachable at <code className="bg-rose-100 dark:bg-rose-900/50 px-1 py-0.5 rounded font-mono text-[11px]">http://localhost:8000</code>.
+                    <br />
+                    To run real AI skill extraction and gap analysis, please launch the backend service:
+                    <span className="block mt-1 font-mono text-[11px] bg-slate-900 text-emerald-400 px-2.5 py-1 rounded-md w-fit">
+                      python backend/run_combined_backend.py
+                    </span>
+                  </>
+                ) : (
+                  error
+                )}
+              </p>
+            </div>
+          </div>
+          {onClearError && (
+            <button
+              onClick={onClearError}
+              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 p-1"
+              aria-label="Dismiss alert"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 3-Column Horizontal Input Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
