@@ -14,6 +14,7 @@ import LoginPage from './components/LoginPage';
 import { UserProvider, useUser } from './context/UserContext';
 import { MessageCircle } from 'lucide-react';
 import { API_BASE } from './config';
+import RobotCharacter from './components/RobotCharacter';
 
 function AppInner() {
   const { user, login, continueAsGuest } = useUser();
