@@ -3,6 +3,7 @@ import { UploadCloud, FileText, X, Sparkles, AlertTriangle } from 'lucide-react'
 import QuickRolePresets from './QuickRolePresets';
 import PrivacyShield from './PrivacyShield';
 import { useUser } from '../context/UserContext';
+import { API_BASE } from '../config';
 
 export default function WorkspaceScreen({
   onExecuteAnalysis,
@@ -88,7 +89,7 @@ export default function WorkspaceScreen({
               <div className="text-xs text-rose-700 dark:text-rose-300 mt-1 leading-relaxed">
                 {error === 'backend_offline' ? (
                   <>
-                    The AI analysis backend is currently offline or unreachable at <code className="bg-rose-100 dark:bg-rose-900/50 px-1 py-0.5 rounded font-mono text-[11px]">http://localhost:8000</code>.
+                    The AI analysis backend is currently offline or unreachable at <code className="bg-rose-100 dark:bg-rose-900/50 px-1 py-0.5 rounded font-mono text-[11px]">{API_BASE}</code>.
                     <br />
                     To run real AI skill extraction and gap analysis, please launch the backend service:
                     <span className="block mt-1 font-mono text-[11px] bg-slate-900 text-emerald-400 px-2.5 py-1 rounded-md w-fit">

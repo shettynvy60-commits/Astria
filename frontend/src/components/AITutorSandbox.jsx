@@ -16,8 +16,7 @@ import {
   Terminal,
   BookOpen
 } from 'lucide-react';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../config';
 
 function createFallbackQuiz(skill, userQuestion) {
   const topic = userQuestion.trim().replace(/[?!.]+$/, '').slice(0, 110);

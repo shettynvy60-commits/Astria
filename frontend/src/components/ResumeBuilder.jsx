@@ -16,6 +16,7 @@ import {
   Shield
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { API_BASE } from '../config';
 
 const createStarterResume = (candidateName = '') => `${candidateName.trim() || 'YOUR NAME'}
 Email | Phone | City, State | LinkedIn | Portfolio
@@ -66,7 +67,7 @@ function extractJobKeywords(text) {
 }
 
 async function scrubText(text) {
-  const response = await fetch('http://localhost:8000/api/pii/scrub', {
+  const response = await fetch(`${API_BASE}/api/pii/scrub`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, mode: 'pseudonymize' })
@@ -222,7 +223,7 @@ export default function ResumeBuilder({ candidateName = '', rawResumeText = '', 
     setActionMessage('');
     try {
       const scrubbed = await scrubText(resumeText);
-      const response = await fetch('http://localhost:8000/api/ai/grammar/fix', {
+      const response = await fetch(`${API_BASE}/api/ai/grammar/fix`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: scrubbed.sanitized_text })
@@ -249,7 +250,7 @@ export default function ResumeBuilder({ candidateName = '', rawResumeText = '', 
         scrubText(resumeText),
         jobDescription.trim() ? scrubText(jobDescription) : Promise.resolve({ sanitized_text: '' })
       ]);
-      const response = await fetch('http://localhost:8000/api/ai/ats/score', {
+      const response = await fetch(`${API_BASE}/api/ai/ats/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

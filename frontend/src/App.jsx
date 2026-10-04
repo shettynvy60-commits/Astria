@@ -13,9 +13,7 @@ import ResumeBuilder from './components/ResumeBuilder';
 import LoginPage from './components/LoginPage';
 import { UserProvider, useUser } from './context/UserContext';
 import { MessageCircle } from 'lucide-react';
-import RobotCharacter from './components/RobotCharacter';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from './config';
 
 function AppInner() {
   const { user, login, continueAsGuest } = useUser();
