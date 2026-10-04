@@ -34,11 +34,21 @@ model-best/
 *.pem
 *.key
 
-# IDEs
+# IDEs & Editors
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# AI Assistant & IDE Artifacts
+.gemini/
+.agents/
+.antigravity/
+.cursor/
+.cursorrules
+.windsurf/
+.claude/
+.copilot/
 
 # Node / Frontend
 node_modules/
